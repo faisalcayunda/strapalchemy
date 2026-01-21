@@ -8,6 +8,7 @@ StrapAlchemy is a powerful query builder library for SQLAlchemy that provides St
 
 ## Features
 
+- **Sync & Async Support**: Choose between sync and async based on your session type
 - **Advanced Filtering**: Strapi-style operators (`$eq`, `$in`, `$contains`, `$between`, etc.)
 - **Nested Relationship Filtering**: Filter through related models with dot notation
 - **Flexible Sorting**: Sort by direct fields or relationship fields
@@ -26,10 +27,11 @@ pip install strapalchemy
 
 ## Quick Start
 
+### For Async Sessions (AsyncEngine + AsyncSession)
+
 ```python
 from sqlalchemy import select
-from strapalchemy import FilterBuilder, SortBuilder, Paginator, SearchEngine
-from strapalchemy.models import Base
+from strapalchemy import FilterBuilder, SortBuilder, Paginator, SearchEngine, Base
 from sqlalchemy import Column, Integer, String
 
 # Define your model
@@ -43,9 +45,9 @@ class User(Base):
 # Build your query
 query = select(User)
 
-# Apply filters
+# Apply filters (sync - no await needed)
 filter_builder = FilterBuilder(User)
-query = await filter_builder.apply_filters(query, {
+query = filter_builder.apply_filters(query, {
     "name": {"$contains": "John"},
     "status": {"$eq": "active"}
 })
@@ -58,12 +60,59 @@ query = sort_builder.apply_sorting(query, ["name:asc", "created_at:desc"])
 search_engine = SearchEngine()
 query = search_engine.apply_search(query, User, "search term")
 
-# Apply pagination
+# Apply pagination (async - use with AsyncSession)
 paginator = Paginator(session, User)
 query, meta = await paginator.apply_pagination(query, {"page": 1, "page_size": 20})
 
 # Execute
 result = await session.execute(query)
+users = result.scalars().all()
+```
+
+### For Sync Sessions (Engine + Session)
+
+```python
+from sqlalchemy import create_engine, select
+from sqlalchemy.orm import Session
+from strapalchemy import FilterBuilder, SortBuilder, SyncPaginator, SearchEngine, Base
+from sqlalchemy import Column, Integer, String
+
+# Define your model
+class User(Base):
+    __tablename__ = "users"
+    id = Column(Integer, primary_key=True)
+    name = Column(String)
+    email = Column(String)
+    status = Column(String)
+
+# Create sync session
+engine = create_engine("sqlite:///database.db")
+session = Session(engine)
+
+# Build your query
+query = select(User)
+
+# Apply filters (sync - same as async)
+filter_builder = FilterBuilder(User)
+query = filter_builder.apply_filters(query, {
+    "name": {"$contains": "John"},
+    "status": {"$eq": "active"}
+})
+
+# Apply sorting (sync - same as async)
+sort_builder = SortBuilder(User)
+query = sort_builder.apply_sorting(query, ["name:asc", "created_at:desc"])
+
+# Apply search (sync - same as async)
+search_engine = SearchEngine()
+query = search_engine.apply_search(query, User, "search term")
+
+# Apply pagination (sync - use SyncPaginator with regular Session)
+paginator = SyncPaginator(session, User)
+query, meta = paginator.apply_pagination(query, {"page": 1, "page_size": 20})
+
+# Execute
+result = session.execute(query)
 users = result.scalars().all()
 ```
 
@@ -94,13 +143,13 @@ StrapAlchemy supports Strapi-style filtering operators:
 ### Nested Relationship Filtering
 
 ```python
-# Filter by relationship fields (async)
-query = await filter_builder.apply_filters(query, {
+# Filter by relationship fields (sync - no await needed)
+query = filter_builder.apply_filters(query, {
     "organization": {"slug": {"$eq": "acme"}}
 })
 
-# Or use dot notation (async)
-query = await filter_builder.apply_filters(query, {
+# Or use dot notation (sync - no await needed)
+query = filter_builder.apply_filters(query, {
     "organization.slug": {"$eq": "acme"}
 })
 ```
@@ -120,15 +169,36 @@ query = sort_builder.apply_sorting(query, ["organization.name:asc"])
 
 ## Pagination
 
-### Page-based Pagination
+> **Note**: Choose `Paginator` for async sessions and `SyncPaginator` for sync sessions. Both have the same API.
+
+### For Async Sessions
 
 ```python
+from strapalchemy import Paginator
+
+paginator = Paginator(async_session, User)
 query, meta = await paginator.apply_pagination(query, {
     "page": 1,
     "page_size": 20
 })
+```
 
-# meta contains:
+### For Sync Sessions
+
+```python
+from strapalchemy import SyncPaginator
+
+paginator = SyncPaginator(session, User)
+query, meta = paginator.apply_pagination(query, {
+    "page": 1,
+    "page_size": 20
+})
+```
+
+### Response Metadata
+
+Both return the same metadata structure:
+```python
 # {
 #     "page": 1,
 #     "page_size": 20,
@@ -139,13 +209,24 @@ query, meta = await paginator.apply_pagination(query, {
 # }
 ```
 
+### Page-based Pagination
+
+```python
+# Async
+query, meta = await paginator.apply_pagination(query, {"page": 1, "page_size": 20})
+
+# Sync
+query, meta = paginator.apply_pagination(query, {"page": 1, "page_size": 20})
+```
+
 ### Offset-based Pagination
 
 ```python
-query, meta = await paginator.apply_pagination(query, {
-    "start": 0,
-    "limit": 20
-})
+# Async
+query, meta = await paginator.apply_pagination(query, {"start": 0, "limit": 20})
+
+# Sync
+query, meta = paginator.apply_pagination(query, {"start": 0, "limit": 20})
 ```
 
 ## Field Selection
@@ -202,14 +283,41 @@ query = search_engine.apply_search(query, User, "John Doe")
 
 ## Advanced Usage
 
+### Choosing Between Sync and Async
+
+| Class | Sync Version | Async Version | Session Type |
+|-------|--------------|---------------|--------------|
+| Paginator | `SyncPaginator` | `Paginator` | Session vs AsyncSession |
+| QueryOptimizer | `SyncQueryOptimizer` | `QueryOptimizer` | Session vs AsyncSession |
+
+### API Reference
+
+All builders (FilterBuilder, SortBuilder, SearchEngine, etc.) are **sync** and work with both session types:
+
+| Method | Type | Session Type |
+|--------|------|--------------|
+| `FilterBuilder.apply_filters()` | **Sync** | Works with both |
+| `SortBuilder.apply_sorting()` | **Sync** | Works with both |
+| `SearchEngine.apply_search()` | **Sync** | Works with both |
+| `FieldSelector.apply_field_selection()` | **Sync** | Works with both |
+| `PopulationBuilder.apply_population()` | **Sync** | Works with both |
+| `SyncPaginator.apply_pagination()` | **Sync** | For sync Session only |
+| `Paginator.apply_pagination()` | **Async** | For async AsyncSession only |
+| `SyncQueryOptimizer.execute_optimized_query()` | **Sync** | For sync Session only |
+| `QueryOptimizer.execute_optimized_query()` | **Async** | For async AsyncSession only |
+
 ### Combining Multiple Builders
 
+#### Async Example
+
 ```python
-async def get_users(filters=None, sort=None, search=None, page=None):
+from strapalchemy import FilterBuilder, SortBuilder, Paginator, SearchEngine
+
+async def get_users(async_session, filters=None, sort=None, search=None, page=None):
     query = select(User)
 
     if filters:
-        query = await filter_builder.apply_filters(query, filters)
+        query = filter_builder.apply_filters(query, filters)  # sync
 
     if sort:
         query = sort_builder.apply_sorting(query, sort)  # sync
@@ -218,9 +326,35 @@ async def get_users(filters=None, sort=None, search=None, page=None):
         query = search_engine.apply_search(query, User, search)  # sync
 
     if page:
-        query, meta = await paginator.apply_pagination(query, page)
+        paginator = Paginator(async_session, User)
+        query, meta = await paginator.apply_pagination(query, page)  # async
 
-    result = await session.execute(query)
+    result = await async_session.execute(query)
+    return result.scalars().all(), meta
+```
+
+#### Sync Example
+
+```python
+from strapalchemy import FilterBuilder, SortBuilder, SyncPaginator, SearchEngine
+
+def get_users(session, filters=None, sort=None, search=None, page=None):
+    query = select(User)
+
+    if filters:
+        query = filter_builder.apply_filters(query, filters)  # sync
+
+    if sort:
+        query = sort_builder.apply_sorting(query, sort)  # sync
+
+    if search:
+        query = search_engine.apply_search(query, User, search)  # sync
+
+    if page:
+        paginator = SyncPaginator(session, User)
+        query, meta = paginator.apply_pagination(query, page)  # sync
+
+    result = session.execute(query)
     return result.scalars().all(), meta
 ```
 
@@ -232,6 +366,24 @@ async def get_users(filters=None, sort=None, search=None, page=None):
 - rich >= 13.0.0
 
 ## Changelog
+
+### 0.2.5
+
+- Added `SyncPaginator` for synchronous SQLAlchemy sessions
+- Added `SyncQueryOptimizer` for synchronous query execution
+- Updated README with comprehensive sync/async examples
+- Added sync session fixtures for testing
+- All builders now work with both sync and async sessions
+
+### 0.2.4
+
+- Converted `FilterBuilder.apply_filters` to sync (no async overhead needed)
+- Updated all documentation and examples to reflect sync API
+
+### 0.2.3
+
+- Fixed import path for `Base` - now import from `strapalchemy` directly
+- Updated documentation with correct import examples
 
 ### 0.2.2
 

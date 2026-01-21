@@ -17,7 +17,7 @@ class TestFilterBuilder:
         query = select(User)
 
         filters = {"name": {"$eq": "John Doe"}}
-        query = await filter_builder.apply_filters(query, filters)
+        query = filter_builder.apply_filters(query, filters)
 
         result = await async_session.execute(query)
         users = result.scalars().all()
@@ -31,7 +31,7 @@ class TestFilterBuilder:
         query = select(User)
 
         filters = {"status": {"$ne": "active"}}
-        query = await filter_builder.apply_filters(query, filters)
+        query = filter_builder.apply_filters(query, filters)
 
         result = await async_session.execute(query)
         users = result.scalars().all()
@@ -46,7 +46,7 @@ class TestFilterBuilder:
         query = select(User)
 
         filters = {"status": {"$in": ["active", "pending"]}}
-        query = await filter_builder.apply_filters(query, filters)
+        query = filter_builder.apply_filters(query, filters)
 
         result = await async_session.execute(query)
         users = result.scalars().all()
@@ -61,7 +61,7 @@ class TestFilterBuilder:
         query = select(User)
 
         filters = {"email": {"$contains": "john"}}
-        query = await filter_builder.apply_filters(query, filters)
+        query = filter_builder.apply_filters(query, filters)
 
         result = await async_session.execute(query)
         users = result.scalars().all()
@@ -75,7 +75,7 @@ class TestFilterBuilder:
         query = select(User)
 
         filters = {"age": {"$lt": 30}}
-        query = await filter_builder.apply_filters(query, filters)
+        query = filter_builder.apply_filters(query, filters)
 
         result = await async_session.execute(query)
         users = result.scalars().all()
@@ -93,7 +93,7 @@ class TestFilterBuilder:
         # Note: $lte uses < internally (for date handling), not <=
         # So age: {$lte: 28} becomes age < 28, which excludes 28
         filters = {"age": {"$lte": 28}}
-        query = await filter_builder.apply_filters(query, filters)
+        query = filter_builder.apply_filters(query, filters)
 
         result = await async_session.execute(query)
         users = result.scalars().all()
@@ -110,7 +110,7 @@ class TestFilterBuilder:
         query = select(User)
 
         filters = {"age": {"$gt": 30}}
-        query = await filter_builder.apply_filters(query, filters)
+        query = filter_builder.apply_filters(query, filters)
 
         result = await async_session.execute(query)
         users = result.scalars().all()
@@ -124,7 +124,7 @@ class TestFilterBuilder:
         query = select(User)
 
         filters = {"age": {"$gte": 30}}
-        query = await filter_builder.apply_filters(query, filters)
+        query = filter_builder.apply_filters(query, filters)
 
         result = await async_session.execute(query)
         users = result.scalars().all()
@@ -139,7 +139,7 @@ class TestFilterBuilder:
         query = select(User)
 
         filters = {"age": {"$between": [25, 30]}}
-        query = await filter_builder.apply_filters(query, filters)
+        query = filter_builder.apply_filters(query, filters)
 
         result = await async_session.execute(query)
         users = result.scalars().all()
@@ -154,7 +154,7 @@ class TestFilterBuilder:
         query = select(User)
 
         filters = {"bio": {"$null": False}}
-        query = await filter_builder.apply_filters(query, filters)
+        query = filter_builder.apply_filters(query, filters)
 
         result = await async_session.execute(query)
         users = result.scalars().all()
@@ -172,7 +172,7 @@ class TestFilterBuilder:
             "status": {"$eq": "active"},
             "age": {"$gte": 25},
         }
-        query = await filter_builder.apply_filters(query, filters)
+        query = filter_builder.apply_filters(query, filters)
 
         result = await async_session.execute(query)
         users = result.scalars().all()
@@ -196,7 +196,7 @@ class TestFilterBuilder:
                 {"name": {"$eq": "Jane Smith"}},
             ]
         }
-        query = await filter_builder.apply_filters(query, filters)
+        query = filter_builder.apply_filters(query, filters)
 
         result = await async_session.execute(query)
         users = result.scalars().all()
@@ -217,7 +217,7 @@ class TestFilterBuilder:
                 {"age": {"$lt": 30}},
             ]
         }
-        query = await filter_builder.apply_filters(query, filters)
+        query = filter_builder.apply_filters(query, filters)
 
         result = await async_session.execute(query)
         users = result.scalars().all()
@@ -231,7 +231,7 @@ class TestFilterBuilder:
         query = select(User)
 
         filters = {"organization": {"slug": {"$eq": "acme"}}}
-        query = await filter_builder.apply_filters(query, filters)
+        query = filter_builder.apply_filters(query, filters)
 
         result = await async_session.execute(query)
         users = result.scalars().all()
@@ -246,7 +246,7 @@ class TestFilterBuilder:
         query = select(User)
 
         filters = {"organization.slug": {"$eq": "beta"}}
-        query = await filter_builder.apply_filters(query, filters)
+        query = filter_builder.apply_filters(query, filters)
 
         result = await async_session.execute(query)
         users = result.scalars().all()
@@ -260,7 +260,7 @@ class TestFilterBuilder:
         filter_builder = FilterBuilder(User)
         query = select(User)
 
-        query = await filter_builder.apply_filters(query, None)
+        query = filter_builder.apply_filters(query, None)
 
         result = await async_session.execute(query)
         users = result.scalars().all()
@@ -273,7 +273,7 @@ class TestFilterBuilder:
         query = select(User)
 
         filters = {"invalid_field": {"$eq": "value"}}
-        query = await filter_builder.apply_filters(query, filters)
+        query = filter_builder.apply_filters(query, filters)
 
         result = await async_session.execute(query)
         users = result.scalars().all()
@@ -287,7 +287,7 @@ class TestFilterBuilder:
         query = select(User)
 
         filters = {"name": {"$containsi": "JOHN"}}
-        query = await filter_builder.apply_filters(query, filters)
+        query = filter_builder.apply_filters(query, filters)
 
         result = await async_session.execute(query)
         users = result.scalars().all()
@@ -303,7 +303,7 @@ class TestFilterBuilder:
         query = select(User)
 
         filters = {"email": {"$startsWith": "john"}}
-        query = await filter_builder.apply_filters(query, filters)
+        query = filter_builder.apply_filters(query, filters)
 
         result = await async_session.execute(query)
         users = result.scalars().all()
@@ -317,7 +317,7 @@ class TestFilterBuilder:
         query = select(User)
 
         filters = {"email": {"$endsWith": "@example.com"}}
-        query = await filter_builder.apply_filters(query, filters)
+        query = filter_builder.apply_filters(query, filters)
 
         result = await async_session.execute(query)
         users = result.scalars().all()

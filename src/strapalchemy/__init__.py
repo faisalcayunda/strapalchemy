@@ -7,9 +7,8 @@ and more.
 
 Example:
     ```python
-    from strapalchemy import FilterBuilder, SortBuilder, SearchEngine
-    from strapalchemy.models import Base
-    from sqlalchemy import select
+    from strapalchemy import FilterBuilder, SortBuilder, SearchEngine, Base
+    from sqlalchemy import select, Column, Integer, String
 
     # Define your model
     class User(Base):
@@ -21,9 +20,9 @@ Example:
     # Use the builders
     query = select(User)
 
-    # Filtering (async)
+    # Filtering (sync - no await needed)
     filter_builder = FilterBuilder(User)
-    query = await filter_builder.apply_filters(query, {"name": {"$contains": "John"}})
+    query = filter_builder.apply_filters(query, {"name": {"$contains": "John"}})
 
     # Sorting (sync)
     sort_builder = SortBuilder(User)
@@ -50,9 +49,11 @@ from strapalchemy.services.query_optimizer import QueryOptimizer
 from strapalchemy.services.search_engine import SearchEngine
 from strapalchemy.services.serializer import ModelSerializer
 from strapalchemy.services.sort_builder import SortBuilder
+from strapalchemy.services.sync_paginator import SyncPaginator
+from strapalchemy.services.sync_query_optimizer import SyncQueryOptimizer
 from strapalchemy.services.type_converter import TypeConverter
 
-__version__ = "0.2.3"
+__version__ = "0.2.5"
 
 __all__ = [
     # Services
@@ -60,8 +61,10 @@ __all__ = [
     "FilterBuilder",
     "OperatorHandler",
     "Paginator",
+    "SyncPaginator",
     "PopulationBuilder",
     "QueryOptimizer",
+    "SyncQueryOptimizer",
     "SearchEngine",
     "ModelSerializer",
     "SortBuilder",

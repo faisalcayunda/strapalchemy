@@ -1,6 +1,6 @@
 [project]
 name = "strapalchemy"
-version = "0.2.3"
+version = "0.2.5"
 description = "Enhanced SQLAlchemy query builder with advanced filtering, sorting, pagination, and search capabilities."
 readme = "README.md"
 requires-python = ">=3.12"

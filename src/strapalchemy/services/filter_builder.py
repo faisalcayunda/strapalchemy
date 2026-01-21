@@ -21,7 +21,7 @@ class FilterBuilder:
         # Cache for relationship metadata to avoid repeated introspection
         self._relationship_cache: dict[str, Any] = {}
 
-    async def apply_filters(self, query: Select, filters: dict[str, Any] | None) -> Select:
+    def apply_filters(self, query: Select, filters: dict[str, Any] | None) -> Select:
         """Apply all filter conditions to the query with enhanced performance and error handling.
 
         Supports both regular field filters and nested relationship filters with optimizations:

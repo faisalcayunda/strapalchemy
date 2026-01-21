@@ -5,12 +5,15 @@ from collections.abc import AsyncGenerator, Generator
 
 import pytest
 import pytest_asyncio
+from sqlalchemy import create_engine
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.orm import Session, sessionmaker
 
 from tests.models import Organization, Post, TestBase, User
 
-# Database URL for testing
-TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
+# Database URLs for testing
+ASYNC_TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
+SYNC_TEST_DATABASE_URL = "sqlite:///:memory:"
 
 
 @pytest.fixture(scope="session")
@@ -25,7 +28,7 @@ def event_loop() -> Generator[asyncio.AbstractEventLoop, None, None]:
 async def async_engine():
     """Create async engine for testing."""
     engine = create_async_engine(
-        TEST_DATABASE_URL,
+        ASYNC_TEST_DATABASE_URL,
         echo=False,
         future=True,
     )
@@ -157,6 +160,68 @@ async def populated_database(
         await async_session.refresh(user)
     for post in sample_posts:
         await async_session.refresh(post)
+
+    return {
+        "organizations": sample_organizations,
+        "users": sample_users,
+        "posts": sample_posts,
+    }
+
+
+# === Sync fixtures for testing SyncPaginator and SyncQueryOptimizer ===
+
+
+@pytest.fixture(scope="function")
+def sync_engine():
+    """Create sync engine for testing."""
+    engine = create_engine(
+        SYNC_TEST_DATABASE_URL,
+        echo=False,
+    )
+
+    # Create tables
+    TestBase.metadata.create_all(engine)
+
+    yield engine
+
+    # Drop tables
+    TestBase.metadata.drop_all(engine)
+
+    engine.dispose()
+
+
+@pytest.fixture(scope="function")
+def sync_session(sync_engine) -> Generator[Session, None, None]:
+    """Create sync session for testing."""
+    session_maker = sessionmaker(
+        sync_engine,
+        class_=Session,
+        expire_on_commit=False,
+    )
+
+    with session_maker() as session:
+        yield session
+
+
+@pytest.fixture(scope="function")
+def populated_sync_database(
+    sync_session, sample_organizations, sample_users, sample_posts
+):
+    """Populate sync database with sample data."""
+    with sync_session.begin():
+        sync_session.add_all(sample_organizations)
+        sync_session.add_all(sample_users)
+        sync_session.add_all(sample_posts)
+
+    sync_session.commit()
+
+    # Refresh all instances
+    for org in sample_organizations:
+        sync_session.refresh(org)
+    for user in sample_users:
+        sync_session.refresh(user)
+    for post in sample_posts:
+        sync_session.refresh(post)
 
     return {
         "organizations": sample_organizations,

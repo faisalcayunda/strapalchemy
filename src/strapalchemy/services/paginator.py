@@ -189,7 +189,7 @@ class Paginator:
                 "has_previous": False,
             }
 
-    async def _apply_default_pagination(self, query: Select, total_count: int) -> tuple[Select, dict[str, Any]]:
+    def _apply_default_pagination(self, query: Select, total_count: int) -> tuple[Select, dict[str, Any]]:
         """Apply default pagination.
 
         Args:

@@ -1,5 +1,7 @@
 # StrapAlchemy
 
+[![PyPI version](https://badge.fury.io/py/strapalchemy.svg)](https://badge.fury.io/py/strapalchemy)
+
 > Enhanced SQLAlchemy query builder with advanced filtering, sorting, pagination, and search capabilities.
 
 StrapAlchemy is a powerful query builder library for SQLAlchemy that provides Strapi-style query syntax for building complex database queries with ease.
@@ -228,6 +230,36 @@ async def get_users(filters=None, sort=None, search=None, page=None):
 - SQLAlchemy >= 2.0.45
 - python-dateutil >= 2.9.0
 - rich >= 13.0.0
+
+## Changelog
+
+### 0.2.2
+
+- Converted `_handle_or_operator` to sync (no async overhead needed)
+- Converted `_apply_default_pagination` to sync (no async overhead needed)
+- Performance improvements for sync operations
+
+### 0.2.1
+
+- Converted `SortBuilder.apply_sorting` to sync
+- Converted `SearchEngine.apply_search` to sync
+- Converted `FieldSelector.apply_field_selection` to sync
+- Converted `PopulationBuilder.apply_population` to sync
+- Converted FilterBuilder helper methods to sync
+- Updated README with correct async/sync API usage
+
+### 0.2.0
+
+- Initial release with core features
+- Advanced filtering with Strapi-style operators
+- Nested relationship filtering
+- Flexible sorting
+- Pagination (page-based and offset-based)
+- Full-text search with BM25/ILIKE fallback
+- Field selection
+- Relationship population
+- Query optimization
+- Model serialization
 
 ## License
 

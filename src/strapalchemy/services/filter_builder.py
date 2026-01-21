@@ -285,7 +285,7 @@ class FilterBuilder:
             logger.error(f"Unexpected error building field conditions for '{field_name}': {e}")
             return None
 
-    async def _handle_or_operator(self, value: Any):
+    def _handle_or_operator(self, value: Any):
         """Handle $or logical operator with enhanced error handling."""
         if not isinstance(value, list):
             return None

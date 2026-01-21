@@ -52,7 +52,7 @@ from strapalchemy.services.serializer import ModelSerializer
 from strapalchemy.services.sort_builder import SortBuilder
 from strapalchemy.services.type_converter import TypeConverter
 
-__version__ = "0.2.1"
+__version__ = "0.2.3"
 
 __all__ = [
     # Services

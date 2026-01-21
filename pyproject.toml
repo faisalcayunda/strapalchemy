@@ -1,0 +1,88 @@
+[project]
+name = "strapalchemy"
+version = "0.1.0"
+description = "Enhanced SQLAlchemy query builder with advanced filtering, sorting, pagination, and search capabilities."
+readme = "README.md"
+requires-python = ">=3.12"
+license = { text = "MIT" }
+authors = [
+    { name = "Faisal Nugraha Cayunda", email = "faisal.nugraha.c@gmail.com" }
+]
+maintainers = [
+    { name = "Faisal Nugraha Cayunda", email = "faisal.nugraha.c@gmail.com" }
+]
+keywords = [
+    "sqlalchemy",
+    "query-builder",
+    "orm",
+    "database",
+    "filtering",
+    "pagination",
+    "search",
+    "strapi"
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Database",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Typing :: Typed",
+]
+dependencies = [
+    "python-dateutil>=2.9.0.post0",
+    "sqlalchemy>=2.0.45",
+    "rich>=13.0.0",
+    "greenlet>=3.3.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.0",
+    "pytest-cov>=4.0.0",
+    "aiosqlite>=0.19.0",
+    "greenlet>=3.0.0",
+    "black>=24.0.0",
+    "ruff>=0.1.0",
+    "mypy>=1.8.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/faisalcayunda/strapalchemy"
+Documentation = "https://github.com/faisalcayunda/strapalchemy#readme"
+Repository = "https://github.com/faisalcayunda/strapalchemy"
+Issues = "https://github.com/faisalcayunda/strapalchemy/issues"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/strapalchemy"]
+
+[tool.black]
+line-length = 100
+target-version = ["py312"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "UP"]
+ignore = ["E501"]
+
+[tool.mypy]
+python_version = "3.12"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]

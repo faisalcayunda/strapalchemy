@@ -48,13 +48,13 @@ query = await filter_builder.apply_filters(query, {
     "status": {"$eq": "active"}
 })
 
-# Apply sorting
+# Apply sorting (sync - no await needed)
 sort_builder = SortBuilder(User)
-query = await sort_builder.apply_sorting(query, ["name:asc", "created_at:desc"])
+query = sort_builder.apply_sorting(query, ["name:asc", "created_at:desc"])
 
-# Apply search
+# Apply search (sync - no await needed)
 search_engine = SearchEngine()
-query = await search_engine.apply_search(query, User, "search term")
+query = search_engine.apply_search(query, User, "search term")
 
 # Apply pagination
 paginator = Paginator(session, User)
@@ -92,12 +92,12 @@ StrapAlchemy supports Strapi-style filtering operators:
 ### Nested Relationship Filtering
 
 ```python
-# Filter by relationship fields
+# Filter by relationship fields (async)
 query = await filter_builder.apply_filters(query, {
     "organization": {"slug": {"$eq": "acme"}}
 })
 
-# Or use dot notation
+# Or use dot notation (async)
 query = await filter_builder.apply_filters(query, {
     "organization.slug": {"$eq": "acme"}
 })
@@ -106,14 +106,14 @@ query = await filter_builder.apply_filters(query, {
 ## Sorting
 
 ```python
-# Sort by single field
-query = await sort_builder.apply_sorting(query, "name:asc")
+# Sort by single field (sync - no await needed)
+query = sort_builder.apply_sorting(query, "name:asc")
 
-# Sort by multiple fields
-query = await sort_builder.apply_sorting(query, ["name:asc", "created_at:desc"])
+# Sort by multiple fields (sync - no await needed)
+query = sort_builder.apply_sorting(query, ["name:asc", "created_at:desc"])
 
-# Sort by relationship field
-query = await sort_builder.apply_sorting(query, ["organization.name:asc"])
+# Sort by relationship field (sync - no await needed)
+query = sort_builder.apply_sorting(query, ["organization.name:asc"])
 ```
 
 ## Pagination
@@ -152,10 +152,10 @@ query, meta = await paginator.apply_pagination(query, {
 from strapalchemy import FieldSelector
 
 field_selector = FieldSelector(User)
-query = await field_selector.apply_field_selection(query, ["id", "name", "email"])
+query = field_selector.apply_field_selection(query, ["id", "name", "email"])
 
-# Select relationship fields
-query = await field_selector.apply_field_selection(query, ["id", "name", "organization.slug"])
+# Select relationship fields (sync - no await needed)
+query = field_selector.apply_field_selection(query, ["id", "name", "organization.slug"])
 ```
 
 ## Model Serialization
@@ -194,8 +194,8 @@ class User(Base):
     email = Column(String)
     bio = Column(String)
 
-# Apply search
-query = await search_engine.apply_search(query, User, "John Doe")
+# Apply search (sync - no await needed)
+query = search_engine.apply_search(query, User, "John Doe")
 ```
 
 ## Advanced Usage
@@ -210,10 +210,10 @@ async def get_users(filters=None, sort=None, search=None, page=None):
         query = await filter_builder.apply_filters(query, filters)
 
     if sort:
-        query = await sort_builder.apply_sorting(query, sort)
+        query = sort_builder.apply_sorting(query, sort)  # sync
 
     if search:
-        query = await search_engine.apply_search(query, User, search)
+        query = search_engine.apply_search(query, User, search)  # sync
 
     if page:
         query, meta = await paginator.apply_pagination(query, page)

@@ -27,7 +27,7 @@ class PopulationBuilder:
         # Cache for field validation
         self._field_cache: dict[str, bool] = {}
 
-    async def apply_population(self, query: Select, populate: str | dict | list | None) -> Select:
+    def apply_population(self, query: Select, populate: str | dict | list | None) -> Select:
         """Apply enhanced relationship loading with performance optimizations and better error handling.
 
         Features:

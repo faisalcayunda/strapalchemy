@@ -19,7 +19,7 @@ class FieldSelector:
         # Cache for model column information
         self._column_cache: set[str] | None = None
 
-    async def apply_field_selection(self, query: Select, fields: list[str] | None) -> Select:
+    def apply_field_selection(self, query: Select, fields: list[str] | None) -> Select:
         """Apply enhanced field selection with performance optimizations and better validation.
 
         Features:

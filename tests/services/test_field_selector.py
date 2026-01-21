@@ -17,7 +17,7 @@ class TestFieldSelector:
         field_selector = FieldSelector(User)
         query = select(User)
 
-        query = await field_selector.apply_field_selection(query, ["name"])
+        query = field_selector.apply_field_selection(query, ["name"])
 
         result = await async_session.execute(query)
         users = result.scalars().all()
@@ -36,7 +36,7 @@ class TestFieldSelector:
         field_selector = FieldSelector(User)
         query = select(User)
 
-        query = await field_selector.apply_field_selection(query, ["name", "email", "age"])
+        query = field_selector.apply_field_selection(query, ["name", "email", "age"])
 
         result = await async_session.execute(query)
         users = result.scalars().all()
@@ -50,7 +50,7 @@ class TestFieldSelector:
         field_selector = FieldSelector(User)
         query = select(User)
 
-        query = await field_selector.apply_field_selection(query, ["id", "name", "organization.slug"])
+        query = field_selector.apply_field_selection(query, ["id", "name", "organization.slug"])
 
         result = await async_session.execute(query)
         users = result.scalars().all()
@@ -64,7 +64,7 @@ class TestFieldSelector:
         field_selector = FieldSelector(User)
         query = select(User)
 
-        query = await field_selector.apply_field_selection(query, None)
+        query = field_selector.apply_field_selection(query, None)
 
         result = await async_session.execute(query)
         users = result.scalars().all()
@@ -78,7 +78,7 @@ class TestFieldSelector:
         field_selector = FieldSelector(User)
         query = select(User)
 
-        query = await field_selector.apply_field_selection(query, [])
+        query = field_selector.apply_field_selection(query, [])
 
         result = await async_session.execute(query)
         users = result.scalars().all()
@@ -92,7 +92,7 @@ class TestFieldSelector:
         field_selector = FieldSelector(User)
         query = select(User)
 
-        query = await field_selector.apply_field_selection(query, ["name", "invalid_field"])
+        query = field_selector.apply_field_selection(query, ["name", "invalid_field"])
 
         result = await async_session.execute(query)
         users = result.scalars().all()
@@ -107,6 +107,6 @@ class TestFieldSelector:
         query = select(User)
 
         fields = ["name", "email", "age"]
-        query = await field_selector.apply_field_selection(query, fields)
+        query = field_selector.apply_field_selection(query, fields)
 
         assert field_selector.selected_fields == fields

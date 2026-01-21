@@ -18,7 +18,7 @@ class SortBuilder:
         # Cache for field validation
         self._field_cache: dict[str, bool] = {}
 
-    async def apply_sorting(self, query: Select, sort_config: list[str] | None) -> Select:
+    def apply_sorting(self, query: Select, sort_config: list[str] | None) -> Select:
         """Apply enhanced sorting to the query with performance optimizations and better error handling.
 
         Features:

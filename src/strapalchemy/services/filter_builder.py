@@ -75,7 +75,7 @@ class FilterBuilder:
                         nested_filters = {nested_field: field_filters}
 
                         # Handle nested relationship filtering
-                        relation_conditions, relation_joins = await self._build_relationship_filters(
+                        relation_conditions, relation_joins = self._build_relationship_filters(
                             relation_name, nested_filters
                         )
                         if relation_conditions is not None:
@@ -87,7 +87,7 @@ class FilterBuilder:
                                 applied_joins.add(join_model)
                     elif self._is_relationship_filter(field_name, field_filters):
                         # Handle nested relationship filtering with caching (for non-dot notation)
-                        relation_conditions, relation_joins = await self._build_relationship_filters(
+                        relation_conditions, relation_joins = self._build_relationship_filters(
                             field_name, field_filters
                         )
                         if relation_conditions is not None:
@@ -99,7 +99,7 @@ class FilterBuilder:
                                 applied_joins.add(join_model)
                     else:
                         # Handle regular field filters
-                        condition = await self._build_field_conditions(field_name, field_filters)
+                        condition = self._build_field_conditions(field_name, field_filters)
                         if condition is not None:
                             filter_conditions.append(condition)
 
@@ -163,7 +163,7 @@ class FilterBuilder:
 
         return has_non_operator_key
 
-    async def _build_relationship_filters(
+    def _build_relationship_filters(
         self, relation_name: str, relation_filters: dict[str, Any]
     ) -> tuple[Any, set]:
         """Build filter conditions for nested relationship filtering with enhanced performance.
@@ -232,7 +232,7 @@ class FilterBuilder:
             logger.error(f"Error building relationship filters for '{relation_name}': {e}")
             return None, set()
 
-    async def _build_field_conditions(self, field_name: str, field_filters: dict[str, Any]):
+    def _build_field_conditions(self, field_name: str, field_filters: dict[str, Any]):
         """Build filter conditions for a specific field with enhanced error handling.
 
         Args:
@@ -256,11 +256,11 @@ class FilterBuilder:
 
                     # Logical operators (handled recursively)
                     if operator == "$or":
-                        condition = await self._handle_or_operator(value)
+                        condition = self._handle_or_operator(value)
                     elif operator == "$and":
-                        condition = await self._handle_and_operator(value)
+                        condition = self._handle_and_operator(value)
                     elif operator == "$not":
-                        condition = await self._handle_not_operator(value)
+                        condition = self._handle_not_operator(value)
                     else:
                         # Use the shared operator condition builder
                         condition = self.operator_handler.build_condition(model_field, operator, value)
@@ -296,7 +296,7 @@ class FilterBuilder:
                 if isinstance(or_filter, dict):
                     for or_field, or_field_filters in or_filter.items():
                         try:
-                            or_condition = await self._build_field_conditions(or_field, or_field_filters)
+                            or_condition = self._build_field_conditions(or_field, or_field_filters)
                             if or_condition is not None:
                                 or_conditions.append(or_condition)
                         except Exception as e:
@@ -311,7 +311,7 @@ class FilterBuilder:
 
         return or_(*or_conditions) if or_conditions else None
 
-    async def _handle_and_operator(self, value: Any):
+    def _handle_and_operator(self, value: Any):
         """Handle $and logical operator with enhanced error handling."""
         if not isinstance(value, list):
             return None
@@ -322,7 +322,7 @@ class FilterBuilder:
                 if isinstance(and_filter, dict):
                     for and_field, and_field_filters in and_filter.items():
                         try:
-                            and_condition = await self._build_field_conditions(and_field, and_field_filters)
+                            and_condition = self._build_field_conditions(and_field, and_field_filters)
                             if and_condition is not None:
                                 and_conditions.append(and_condition)
                         except Exception as e:
@@ -337,7 +337,7 @@ class FilterBuilder:
 
         return and_(*and_conditions) if and_conditions else None
 
-    async def _handle_not_operator(self, value: Any):
+    def _handle_not_operator(self, value: Any):
         """Handle $not logical operator with enhanced error handling."""
         if not isinstance(value, dict):
             return None
@@ -345,7 +345,7 @@ class FilterBuilder:
         not_conditions = []
         for not_field, not_field_filters in value.items():
             try:
-                not_condition = await self._build_field_conditions(not_field, not_field_filters)
+                not_condition = self._build_field_conditions(not_field, not_field_filters)
                 if not_condition is not None:
                     not_conditions.append(not_condition)
             except Exception as e:

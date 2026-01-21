@@ -19,7 +19,7 @@ class TestSearchEngine:
         search_engine._force_ilike = True
         query = select(User)
 
-        query = await search_engine.apply_search(query, User, "Software")
+        query = search_engine.apply_search(query, User, "Software")
 
         result = await async_session.execute(query)
         users = result.scalars().all()
@@ -36,7 +36,7 @@ class TestSearchEngine:
         search_engine._force_ilike = True
         query = select(User)
 
-        query = await search_engine.apply_search(query, User, "John")
+        query = search_engine.apply_search(query, User, "John")
 
         result = await async_session.execute(query)
         users = result.scalars().all()
@@ -52,7 +52,7 @@ class TestSearchEngine:
         search_engine._force_ilike = True
         query = select(User)
 
-        query = await search_engine.apply_search(query, User, "john@example")
+        query = search_engine.apply_search(query, User, "john@example")
 
         result = await async_session.execute(query)
         users = result.scalars().all()
@@ -66,7 +66,7 @@ class TestSearchEngine:
         search_engine = SearchEngine()
         query = select(User)
 
-        query = await search_engine.apply_search(query, User, "")
+        query = search_engine.apply_search(query, User, "")
 
         result = await async_session.execute(query)
         users = result.scalars().all()
@@ -81,7 +81,7 @@ class TestSearchEngine:
         search_engine = SearchEngine()
         query = select(User)
 
-        query = await search_engine.apply_search(query, User, None)
+        query = search_engine.apply_search(query, User, None)
 
         result = await async_session.execute(query)
         users = result.scalars().all()
@@ -98,7 +98,7 @@ class TestSearchEngine:
         query = select(User)
 
         # Potentially dangerous input - gets sanitized
-        query = await search_engine.apply_search(query, User, "'; DROP TABLE users; --")
+        query = search_engine.apply_search(query, User, "'; DROP TABLE users; --")
 
         # Should not raise an error
         result = await async_session.execute(query)
@@ -115,7 +115,7 @@ class TestSearchEngine:
         search_engine._force_ilike = True
         query = select(Post)
 
-        query = await search_engine.apply_search(query, Post, "first")
+        query = search_engine.apply_search(query, Post, "first")
 
         result = await async_session.execute(query)
         posts = result.scalars().all()

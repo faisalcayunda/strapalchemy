@@ -46,22 +46,22 @@ class Paginator:
 
             # Page-based pagination
             if "page" in pagination:
-                return await self._apply_page_based_pagination(query, pagination, total_count)
+                return self._apply_page_based_pagination(query, pagination, total_count)
 
             # Offset-based pagination
             elif "start" in pagination:
-                return await self._apply_offset_based_pagination(query, pagination, total_count)
+                return self._apply_offset_based_pagination(query, pagination, total_count)
 
             # Default pagination
             else:
-                return await self._apply_default_pagination(query, total_count)
+                return self._apply_default_pagination(query, total_count)
 
         except Exception as e:
             logger.error(f"Error applying pagination: {e}")
             # Return original query without pagination if pagination fails
             return query, None
 
-    async def _apply_page_based_pagination(
+    def _apply_page_based_pagination(
         self, query: Select, pagination: dict[str, Any], total_count: int
     ) -> tuple[Select, dict[str, Any]]:
         """Apply page-based pagination with enhanced validation and error handling.
@@ -123,7 +123,7 @@ class Paginator:
                 "has_previous": False,
             }
 
-    async def _apply_offset_based_pagination(
+    def _apply_offset_based_pagination(
         self, query: Select, pagination: dict[str, Any], total_count: int
     ) -> tuple[Select, dict[str, Any]]:
         """Apply offset-based pagination with enhanced validation and error handling.

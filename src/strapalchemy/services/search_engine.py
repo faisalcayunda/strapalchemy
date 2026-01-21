@@ -20,7 +20,7 @@ class SearchEngine:
         # Flag to force ILIKE search (for testing or when ParadeDB fails)
         self._force_ilike: bool = False
 
-    async def apply_search(self, query: Select, model: type[Base], search: str | None) -> Select:
+    def apply_search(self, query: Select, model: type[Base], search: str | None) -> Select:
         """Apply enhanced full-text search with BM25, fuzzy search, and performance optimizations.
 
         Features:

@@ -17,7 +17,7 @@ class TestSortBuilder:
         sort_builder = SortBuilder(User)
         query = select(User)
 
-        query = await sort_builder.apply_sorting(query, ["name:asc"])
+        query = sort_builder.apply_sorting(query, ["name:asc"])
 
         result = await async_session.execute(query)
         users = result.scalars().all()
@@ -33,7 +33,7 @@ class TestSortBuilder:
         sort_builder = SortBuilder(User)
         query = select(User)
 
-        query = await sort_builder.apply_sorting(query, ["age:desc"])
+        query = sort_builder.apply_sorting(query, ["age:desc"])
 
         result = await async_session.execute(query)
         users = result.scalars().all()
@@ -50,7 +50,7 @@ class TestSortBuilder:
         query = select(User)
 
         # Sort by status descending, then by age ascending
-        query = await sort_builder.apply_sorting(query, ["status:desc", "age:asc"])
+        query = sort_builder.apply_sorting(query, ["status:desc", "age:asc"])
 
         result = await async_session.execute(query)
         users = result.scalars().all()
@@ -76,7 +76,7 @@ class TestSortBuilder:
         sort_builder = SortBuilder(User)
         query = select(User)
 
-        query = await sort_builder.apply_sorting(query, ["name"])
+        query = sort_builder.apply_sorting(query, ["name"])
 
         result = await async_session.execute(query)
         users = result.scalars().all()
@@ -92,7 +92,7 @@ class TestSortBuilder:
         sort_builder = SortBuilder(User)
         query = select(User)
 
-        query = await sort_builder.apply_sorting(query, ["organization.name:asc"])
+        query = sort_builder.apply_sorting(query, ["organization.name:asc"])
 
         result = await async_session.execute(query)
         users = result.scalars().all()
@@ -109,7 +109,7 @@ class TestSortBuilder:
         sort_builder = SortBuilder(User)
         query = select(User)
 
-        query = await sort_builder.apply_sorting(query, None)
+        query = sort_builder.apply_sorting(query, None)
 
         result = await async_session.execute(query)
         users = result.scalars().all()
@@ -123,7 +123,7 @@ class TestSortBuilder:
         sort_builder = SortBuilder(User)
         query = select(User)
 
-        query = await sort_builder.apply_sorting(query, ["invalid_field:asc"])
+        query = sort_builder.apply_sorting(query, ["invalid_field:asc"])
 
         result = await async_session.execute(query)
         users = result.scalars().all()

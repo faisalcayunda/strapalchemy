@@ -4,7 +4,7 @@ from collections.abc import Mapping
 from datetime import date, datetime
 from decimal import Decimal
 from ipaddress import IPv4Address, IPv6Address
-from typing import Any, Dict, List, Union
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy.inspection import inspect
@@ -26,15 +26,15 @@ class ModelSerializer:
     }
 
     # Cache for model introspection to avoid repeated calls
-    _model_cache: Dict[str, Any] = {}
+    _model_cache: dict[str, Any] = {}
 
     @classmethod
     def serialize(
         cls,
         models: Any,
-        fields: List[str] = None,
-        populate: Union[str, Dict[str, Any], List[str]] = None,
-    ) -> Union[List[Dict[str, Any]], Dict[str, Any]]:
+        fields: list[str] = None,
+        populate: str | dict[str, Any] | list[str] = None,
+    ) -> list[dict[str, Any]] | dict[str, Any]:
         """Serialize SQLAlchemy models to dictionaries with enhanced performance and memory optimizations.
 
         Features:
@@ -83,7 +83,7 @@ class ModelSerializer:
             return [] if isinstance(models, (list, tuple)) else {}
 
     @classmethod
-    def _serialize_single_model(cls, model, regular_fields, dotted_fields, populate_dict) -> Dict[str, Any]:
+    def _serialize_single_model(cls, model, regular_fields, dotted_fields, populate_dict) -> dict[str, Any]:
         """Serialize a single model instance with enhanced performance and memory optimization.
 
         Args:
@@ -347,7 +347,7 @@ class ModelSerializer:
             return "*"
 
         # Helper function to convert dot notation to nested dict
-        def build_nested_dict(path: str) -> Dict[str, Any]:
+        def build_nested_dict(path: str) -> dict[str, Any]:
             """Convert dot notation path to nested dict.
 
             Example: "user.role" -> {"user": {"role": {}}}
@@ -367,7 +367,7 @@ class ModelSerializer:
             return result[parts[0]] if parts else {}
 
         # Helper to merge nested dicts
-        def merge_nested(target: Dict, source: Dict) -> None:
+        def merge_nested(target: dict, source: dict) -> None:
             """Merge source dict into target dict recursively."""
             for key, value in source.items():
                 if key in target and isinstance(target[key], dict) and isinstance(value, dict):

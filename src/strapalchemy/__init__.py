@@ -25,9 +25,14 @@ Example:
 """
 
 # Services
+# Logging
+from strapalchemy.logging import get_logger, logger, setup_logging_from_ini
+
+# Models
+from strapalchemy.models.base import Base
 from strapalchemy.services.field_selector import FieldSelector
 from strapalchemy.services.filter_builder import FilterBuilder
-from strapalchemy.services.operator_handler import OperatorHandler, STRAPI_OPERATORS
+from strapalchemy.services.operator_handler import STRAPI_OPERATORS, OperatorHandler
 from strapalchemy.services.paginator import Paginator
 from strapalchemy.services.population_builder import PopulationBuilder
 from strapalchemy.services.query_optimizer import QueryOptimizer
@@ -35,12 +40,6 @@ from strapalchemy.services.search_engine import SearchEngine
 from strapalchemy.services.serializer import ModelSerializer
 from strapalchemy.services.sort_builder import SortBuilder
 from strapalchemy.services.type_converter import TypeConverter
-
-# Models
-from strapalchemy.models.base import Base
-
-# Logging
-from strapalchemy.logging import logger, get_logger, setup_logging_from_ini
 
 __version__ = "0.1.0"
 

@@ -1,6 +1,5 @@
 """Enhanced field selection builder for queries with performance optimizations and better validation."""
 
-from typing import Dict, List, Optional, Set, Type
 
 from sqlalchemy import Select
 from sqlalchemy.orm import joinedload, load_only, selectinload
@@ -12,15 +11,15 @@ from strapalchemy.models.base import Base
 class FieldSelector:
     """Enhanced field selector with performance optimizations and better validation."""
 
-    def __init__(self, model: Type[Base]):
+    def __init__(self, model: type[Base]):
         self.model = model
-        self._selected_fields: Optional[List[str]] = None
+        self._selected_fields: list[str] | None = None
         # Cache for field validation to avoid repeated introspection
-        self._field_cache: Dict[str, bool] = {}
+        self._field_cache: dict[str, bool] = {}
         # Cache for model column information
-        self._column_cache: Optional[Set[str]] = None
+        self._column_cache: set[str] | None = None
 
-    async def apply_field_selection(self, query: Select, fields: Optional[List[str]]) -> Select:
+    async def apply_field_selection(self, query: Select, fields: list[str] | None) -> Select:
         """Apply enhanced field selection with performance optimizations and better validation.
 
         Features:
@@ -123,7 +122,7 @@ class FieldSelector:
             self._field_cache[field_name] = False
             return False
 
-    def _get_model_columns(self) -> Set[str]:
+    def _get_model_columns(self) -> set[str]:
         """Get all column names from the model with caching.
 
         Returns:
@@ -138,7 +137,7 @@ class FieldSelector:
         return self._column_cache
 
     @property
-    def selected_fields(self) -> Optional[List[str]]:
+    def selected_fields(self) -> list[str] | None:
         """Get the currently selected fields.
 
         Returns:

@@ -1,14 +1,13 @@
 """Test configuration and fixtures for StrapAlchemy tests."""
 
 import asyncio
-from typing import AsyncGenerator, Generator
+from collections.abc import AsyncGenerator, Generator
 
 import pytest
 import pytest_asyncio
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from tests.models import Organization, Post, TestBase, User
-
 
 # Database URL for testing
 TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"

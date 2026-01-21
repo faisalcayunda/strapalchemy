@@ -2,14 +2,14 @@
 
 import ast
 from datetime import date, datetime, timedelta
-from typing import Any, Optional, Set
+from typing import Any
 
 from sqlalchemy import func
 
 from .type_converter import TypeConverter
 
 # Supported Strapi-style operators
-STRAPI_OPERATORS: Set[str] = {
+STRAPI_OPERATORS: set[str] = {
     "$eq",
     "$eqi",
     "$ne",
@@ -67,7 +67,7 @@ class OperatorHandler:
             "$between": self._handle_between,
         }
 
-    def build_condition(self, model_field, operator: str, value: Any) -> Optional[Any]:
+    def build_condition(self, model_field, operator: str, value: Any) -> Any | None:
         """Build a single operator condition for a field.
 
         Args:

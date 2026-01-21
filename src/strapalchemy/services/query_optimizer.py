@@ -2,7 +2,7 @@
 Query optimization utilities to prevent N+1 queries and improve performance.
 """
 
-from typing import Any, Dict, List, Optional, Type
+from typing import Any
 
 from sqlalchemy import Select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -22,9 +22,9 @@ class QueryOptimizer:
     @staticmethod
     def apply_eager_loading(
         query: Select,
-        model: Type,
-        relationships: Optional[Dict[str, str]] = None,
-        populate: Optional[Any] = None,
+        model: type,
+        relationships: dict[str, str] | None = None,
+        populate: Any | None = None,
         strategy: str = "selectinload",
     ) -> Select:
         """
@@ -79,7 +79,7 @@ class QueryOptimizer:
         return query
 
     @staticmethod
-    def optimize_relationships(relationships: Dict[str, str], query_type: str = "list") -> Dict[str, str]:
+    def optimize_relationships(relationships: dict[str, str], query_type: str = "list") -> dict[str, str]:
         """
         Optimize relationship loading strategies based on query type.
 
@@ -110,8 +110,8 @@ class QueryOptimizer:
 
     @staticmethod
     def detect_n_plus_one_risks(
-        model: Type, relationships: Dict[str, str], query_plan: Optional[str] = None
-    ) -> List[str]:
+        model: type, relationships: dict[str, str], query_plan: str | None = None
+    ) -> list[str]:
         """
         Detect potential N+1 query risks in relationships.
 
@@ -137,7 +137,7 @@ class QueryOptimizer:
         return risks
 
     @staticmethod
-    def create_batch_loader(model: Type, relationships: Dict[str, str], batch_size: int = 100) -> Dict[str, Any]:
+    def create_batch_loader(model: type, relationships: dict[str, str], batch_size: int = 100) -> dict[str, Any]:
         """
         Create batch loading configuration for large datasets.
 
@@ -159,7 +159,7 @@ class QueryOptimizer:
         return batch_config
 
     @staticmethod
-    def analyze_query_complexity(query: Select, relationships: Dict[str, str]) -> Dict[str, Any]:
+    def analyze_query_complexity(query: Select, relationships: dict[str, str]) -> dict[str, Any]:
         """
         Analyze query complexity and provide optimization recommendations.
 
@@ -198,9 +198,9 @@ class QueryOptimizer:
     async def execute_optimized_query(
         self,
         query: Select,
-        model: Type,
-        relationships: Optional[Dict[str, str]] = None,
-        populate: Optional[Any] = None,
+        model: type,
+        relationships: dict[str, str] | None = None,
+        populate: Any | None = None,
         query_type: str = "list",
     ) -> Any:
         """

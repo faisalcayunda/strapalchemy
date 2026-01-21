@@ -1,9 +1,5 @@
 """Tests for ModelSerializer."""
 
-import pytest
-
-from tests.models import User
-
 
 class TestModelSerializer:
     """Test cases for ModelSerializer."""

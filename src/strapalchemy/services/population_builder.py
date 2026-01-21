@@ -1,6 +1,6 @@
 """Enhanced relationship population (eager loading) builder for queries with performance optimizations."""
 
-from typing import Any, Dict, List, Optional, Type, Union
+from typing import Any
 
 from sqlalchemy import Select
 from sqlalchemy.orm import joinedload, selectinload, subqueryload
@@ -12,7 +12,7 @@ from strapalchemy.models.base import Base
 class PopulationBuilder:
     """Enhanced relationship eager loading builder with performance optimizations and better error handling."""
 
-    def __init__(self, model: Type[Base], relationships: Optional[Dict[str, str]] = None):
+    def __init__(self, model: type[Base], relationships: dict[str, str] | None = None):
         """Initialize PopulationBuilder with enhanced configuration.
 
         Args:
@@ -23,11 +23,11 @@ class PopulationBuilder:
         self.model = model
         self.relationships = relationships or {}
         # Cache for relationship metadata to avoid repeated introspection
-        self._relationship_cache: Dict[str, Any] = {}
+        self._relationship_cache: dict[str, Any] = {}
         # Cache for field validation
-        self._field_cache: Dict[str, bool] = {}
+        self._field_cache: dict[str, bool] = {}
 
-    async def apply_population(self, query: Select, populate: Optional[Union[str, Dict, List]]) -> Select:
+    async def apply_population(self, query: Select, populate: str | dict | list | None) -> Select:
         """Apply enhanced relationship loading with performance optimizations and better error handling.
 
         Features:
@@ -194,7 +194,7 @@ class PopulationBuilder:
 
         return query
 
-    def _load_relationships_from_dict(self, query: Select, populate_dict: Dict) -> Select:
+    def _load_relationships_from_dict(self, query: Select, populate_dict: dict) -> Select:
         """Load relationships from dictionary configuration.
 
         Args:

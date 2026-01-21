@@ -1,6 +1,6 @@
 """Enhanced pagination builder for queries with performance optimizations and better error handling."""
 
-from typing import Any, Dict, Optional, Tuple, Type
+from typing import Any
 
 from sqlalchemy import Select, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -12,15 +12,15 @@ from strapalchemy.models.base import Base
 class Paginator:
     """Enhanced pagination builder with performance optimizations and better error handling."""
 
-    def __init__(self, session: AsyncSession, model: Type[Base]):
+    def __init__(self, session: AsyncSession, model: type[Base]):
         self.session = session
         self.model = model
         # Cache for count queries to avoid repeated execution
-        self._count_cache: Dict[str, int] = {}
+        self._count_cache: dict[str, int] = {}
 
     async def apply_pagination(
-        self, query: Select, pagination: Optional[Dict[str, Any]]
-    ) -> Tuple[Select, Optional[Dict[str, Any]]]:
+        self, query: Select, pagination: dict[str, Any] | None
+    ) -> tuple[Select, dict[str, Any] | None]:
         """Apply enhanced pagination with performance optimizations and better error handling.
 
         Features:
@@ -62,8 +62,8 @@ class Paginator:
             return query, None
 
     async def _apply_page_based_pagination(
-        self, query: Select, pagination: Dict[str, Any], total_count: int
-    ) -> Tuple[Select, Dict[str, Any]]:
+        self, query: Select, pagination: dict[str, Any], total_count: int
+    ) -> tuple[Select, dict[str, Any]]:
         """Apply page-based pagination with enhanced validation and error handling.
 
         Args:
@@ -124,8 +124,8 @@ class Paginator:
             }
 
     async def _apply_offset_based_pagination(
-        self, query: Select, pagination: Dict[str, Any], total_count: int
-    ) -> Tuple[Select, Dict[str, Any]]:
+        self, query: Select, pagination: dict[str, Any], total_count: int
+    ) -> tuple[Select, dict[str, Any]]:
         """Apply offset-based pagination with enhanced validation and error handling.
 
         Args:
@@ -189,7 +189,7 @@ class Paginator:
                 "has_previous": False,
             }
 
-    async def _apply_default_pagination(self, query: Select, total_count: int) -> Tuple[Select, Dict[str, Any]]:
+    async def _apply_default_pagination(self, query: Select, total_count: int) -> tuple[Select, dict[str, Any]]:
         """Apply default pagination.
 
         Args:

@@ -20,7 +20,13 @@ For service-specific loggers:
 """
 
 from strapalchemy.logging.handlers import RichConsoleHandler
-from strapalchemy.logging.logger import AppLogger, SingletonMeta, get_logger, logger, setup_logging_from_ini
+from strapalchemy.logging.logger import (
+    AppLogger,
+    SingletonMeta,
+    get_logger,
+    logger,
+    setup_logging_from_ini,
+)
 
 __all__ = [
     "logger",

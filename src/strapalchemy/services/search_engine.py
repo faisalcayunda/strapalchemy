@@ -1,7 +1,7 @@
 """Enhanced full-text and fuzzy search engine for queries with BM25 and performance optimizations."""
 
 import re
-from typing import Any, Dict, List, Optional, Type
+from typing import Any
 
 from sqlalchemy import Select, String, Text, or_, text
 
@@ -14,13 +14,13 @@ class SearchEngine:
 
     def __init__(self):
         # Cache for searchable field configurations
-        self._searchable_cache: Dict[str, Any] = {}
+        self._searchable_cache: dict[str, Any] = {}
         # Flag to track if ParadeDB is available (will be set on first use)
-        self._paradedb_available: Optional[bool] = None
+        self._paradedb_available: bool | None = None
         # Flag to force ILIKE search (for testing or when ParadeDB fails)
         self._force_ilike: bool = False
 
-    async def apply_search(self, query: Select, model: Type[Base], search: Optional[str]) -> Select:
+    async def apply_search(self, query: Select, model: type[Base], search: str | None) -> Select:
         """Apply enhanced full-text search with BM25, fuzzy search, and performance optimizations.
 
         Features:
@@ -74,7 +74,7 @@ class SearchEngine:
         self._force_ilike = True
         logger.warning("ParadeDB marked as unavailable. All searches will use ILIKE fallback.")
 
-    def _get_searchable_config(self, model: Type[Base]) -> Optional[Dict[str, Any]]:
+    def _get_searchable_config(self, model: type[Base]) -> dict[str, Any] | None:
         """Get searchable configuration with caching.
 
         Args:
@@ -95,7 +95,7 @@ class SearchEngine:
         self._searchable_cache[model_name] = config
         return config
 
-    def _apply_fallback_search(self, query: Select, model: Type[Base], search: str) -> Select:
+    def _apply_fallback_search(self, query: Select, model: type[Base], search: str) -> Select:
         """Apply fallback ILIKE search when no configuration is available.
 
         Args:
@@ -110,7 +110,7 @@ class SearchEngine:
         return self._apply_ilike_search(query, model, [], sanitized_search)
 
     def _apply_hybrid_search(
-        self, query: Select, model: Type[Base], text_fields: List[str], search: str, fuzzy_tolerance: int = 2
+        self, query: Select, model: type[Base], text_fields: list[str], search: str, fuzzy_tolerance: int = 2
     ) -> Select:
         """Apply hybrid BM25 + fuzzy search for best results.
 
@@ -151,7 +151,7 @@ class SearchEngine:
             logger.warning(f"ParadeDB search failed, falling back to ILIKE search: {e}")
             return self._apply_ilike_search(query, model, text_fields, search)
 
-    def _apply_bm25_search(self, query: Select, model: Type[Base], text_fields: List[str], search: str) -> Select:
+    def _apply_bm25_search(self, query: Select, model: type[Base], text_fields: list[str], search: str) -> Select:
         """Apply BM25 full-text search.
 
         Falls back to ILIKE search if ParadeDB is not available.
@@ -174,7 +174,7 @@ class SearchEngine:
             logger.warning(f"BM25 search failed, falling back to ILIKE search: {e}")
             return self._apply_ilike_search(query, model, text_fields, search)
 
-    def _build_bm25_condition(self, table_name: str, text_fields: List[str], search: str) -> str:
+    def _build_bm25_condition(self, table_name: str, text_fields: list[str], search: str) -> str:
         """Build BM25 search condition.
 
         Args:
@@ -213,7 +213,7 @@ class SearchEngine:
         return search_query
 
     def _apply_fuzzy_search(
-        self, query: Select, model: Type[Base], text_fields: List[str], search: str, fuzzy_tolerance: int = 2
+        self, query: Select, model: type[Base], text_fields: list[str], search: str, fuzzy_tolerance: int = 2
     ) -> Select:
         """Apply ParadeDB fuzzy search with configurable tolerance.
 
@@ -243,7 +243,7 @@ class SearchEngine:
             logger.warning(f"Fuzzy search failed, falling back to ILIKE search: {e}")
             return self._apply_ilike_search(query, model, text_fields, search)
 
-    def _apply_ilike_search(self, query: Select, model: Type[Base], text_fields: List[str], search: str) -> Select:
+    def _apply_ilike_search(self, query: Select, model: type[Base], text_fields: list[str], search: str) -> Select:
         """Apply ILIKE-based search with enhanced field selection.
 
         Args:

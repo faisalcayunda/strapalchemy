@@ -1,6 +1,6 @@
 """Test models for StrapAlchemy tests."""
 
-from sqlalchemy import Column, DateTime, Integer, ForeignKey, String, Text, func
+from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Text, func
 from sqlalchemy.orm import DeclarativeBase, relationship
 
 

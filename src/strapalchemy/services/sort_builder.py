@@ -1,6 +1,6 @@
 """Enhanced sorting builder for queries with performance optimizations and better error handling."""
 
-from typing import Any, Dict, List, Optional, Tuple, Type
+from typing import Any
 
 from sqlalchemy import Select, asc, desc
 
@@ -11,14 +11,14 @@ from strapalchemy.models.base import Base
 class SortBuilder:
     """Enhanced sorting builder with performance optimizations and better error handling."""
 
-    def __init__(self, model: Type[Base]):
+    def __init__(self, model: type[Base]):
         self.model = model
         # Cache for relationship metadata to avoid repeated introspection
-        self._relationship_cache: Dict[str, Any] = {}
+        self._relationship_cache: dict[str, Any] = {}
         # Cache for field validation
-        self._field_cache: Dict[str, bool] = {}
+        self._field_cache: dict[str, bool] = {}
 
-    async def apply_sorting(self, query: Select, sort_config: Optional[List[str]]) -> Select:
+    async def apply_sorting(self, query: Select, sort_config: list[str] | None) -> Select:
         """Apply enhanced sorting to the query with performance optimizations and better error handling.
 
         Features:
@@ -114,7 +114,7 @@ class SortBuilder:
             return query
 
     @staticmethod
-    def _parse_sort_directive(sort_directive: str) -> Tuple[str, str]:
+    def _parse_sort_directive(sort_directive: str) -> tuple[str, str]:
         """Parse sort directive into field name and direction.
 
         Args:
@@ -133,7 +133,7 @@ class SortBuilder:
 
         return field_name, direction
 
-    def _get_nested_field_for_sorting(self, field_path: str) -> Tuple[Any, List]:
+    def _get_nested_field_for_sorting(self, field_path: str) -> tuple[Any, list]:
         """Get nested field and required joins for sorting with caching.
 
         Args:

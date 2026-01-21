@@ -4,7 +4,7 @@ import pytest
 from sqlalchemy import select
 
 from strapalchemy.services.filter_builder import FilterBuilder
-from tests.models import Organization, Post, User
+from tests.models import User
 
 
 @pytest.mark.asyncio

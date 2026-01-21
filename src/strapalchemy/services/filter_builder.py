@@ -1,7 +1,7 @@
 """Enhanced dynamic filter builder for queries with performance optimizations."""
 
 from functools import lru_cache
-from typing import Any, Dict, Optional, Set, Tuple, Type
+from typing import Any
 
 from dateutil.parser import parse as date_parse
 from sqlalchemy import Select, and_, not_, or_
@@ -15,13 +15,13 @@ from .operator_handler import OperatorHandler
 class FilterBuilder:
     """Enhanced filter builder with performance optimizations and better error handling."""
 
-    def __init__(self, model: Type[Base]):
+    def __init__(self, model: type[Base]):
         self.model = model
         self.operator_handler = OperatorHandler()
         # Cache for relationship metadata to avoid repeated introspection
-        self._relationship_cache: Dict[str, Any] = {}
+        self._relationship_cache: dict[str, Any] = {}
 
-    async def apply_filters(self, query: Select, filters: Optional[Dict[str, Any]]) -> Select:
+    async def apply_filters(self, query: Select, filters: dict[str, Any] | None) -> Select:
         """Apply all filter conditions to the query with enhanced performance and error handling.
 
         Supports both regular field filters and nested relationship filters with optimizations:
@@ -164,8 +164,8 @@ class FilterBuilder:
         return has_non_operator_key
 
     async def _build_relationship_filters(
-        self, relation_name: str, relation_filters: Dict[str, Any]
-    ) -> Tuple[Any, Set]:
+        self, relation_name: str, relation_filters: dict[str, Any]
+    ) -> tuple[Any, set]:
         """Build filter conditions for nested relationship filtering with enhanced performance.
 
         Args:
@@ -232,7 +232,7 @@ class FilterBuilder:
             logger.error(f"Error building relationship filters for '{relation_name}': {e}")
             return None, set()
 
-    async def _build_field_conditions(self, field_name: str, field_filters: Dict[str, Any]):
+    async def _build_field_conditions(self, field_name: str, field_filters: dict[str, Any]):
         """Build filter conditions for a specific field with enhanced error handling.
 
         Args:
@@ -382,7 +382,7 @@ class FilterBuilder:
             return None
 
     @staticmethod
-    def _parse_date_values(field_filters: Dict[str, Any]) -> Dict[str, Any]:
+    def _parse_date_values(field_filters: dict[str, Any]) -> dict[str, Any]:
         """Parse date strings in filter values with enhanced error handling.
 
         Args:

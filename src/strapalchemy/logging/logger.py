@@ -79,7 +79,7 @@ class AppLogger(metaclass=SingletonMeta):
             self._logger = root_logger
         else:
             # Fallback to programmatic configuration
-            self._logger = logging.getLogger("portal-data")
+            self._logger = logging.getLogger("strapalchemy")
             self._logger.setLevel(logging.INFO)
 
             # Remove existing handlers to avoid duplicates
@@ -101,6 +101,18 @@ class AppLogger(metaclass=SingletonMeta):
     def is_configured_from_ini(self) -> bool:
         """Check if logger was configured from INI file."""
         return self._configured_from_ini
+
+    @classmethod
+    def reset(cls) -> None:
+        """Remove the singleton instance so the next AppLogger() call creates a fresh one.
+
+        Note: This does NOT invalidate already-imported ``logger`` references held by
+        other modules. Modules that imported ``from strapalchemy.logging.logger import logger``
+        before calling ``reset()`` will retain their reference to the old Logger object.
+        For complete test isolation, patch ``strapalchemy.logging.logger.logger`` directly
+        using ``unittest.mock.patch`` rather than relying on this method.
+        """
+        SingletonMeta._instances.pop(cls, None)
 
 
 # Global logger instance - import this in your modules

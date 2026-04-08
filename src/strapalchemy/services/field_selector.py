@@ -68,8 +68,9 @@ class FieldSelector:
                 if "id" not in direct_columns and self._is_valid_field("id"):
                     direct_columns.append("id")
 
-                # Use load_only with direct column names for optimal performance
-                query = query.options(load_only(*direct_columns))
+                # Use load_only with mapped attribute objects for compatibility
+                mapped_columns = [getattr(self.model, col) for col in direct_columns]
+                query = query.options(load_only(*mapped_columns))
 
             # Load relationships for dotted fields
             if relationships_to_load:

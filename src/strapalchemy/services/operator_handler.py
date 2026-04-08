@@ -1,10 +1,11 @@
 """Operator condition builder for query filters."""
 
-import ast
-from datetime import date, datetime, timedelta
+import json
 from typing import Any
 
 from sqlalchemy import func
+
+from strapalchemy.logging.logger import logger
 
 from .type_converter import TypeConverter
 
@@ -105,11 +106,7 @@ class OperatorHandler:
 
     def _handle_lte(self, field, value):
         value = self.type_converter.convert_value_type(field, value)
-        # Handle date/datetime special case
-        if hasattr(field.type, "python_type") and field.type.python_type in (date, datetime):
-            if isinstance(value, (date, datetime)):
-                value = value + timedelta(days=1)
-        return field < value
+        return field <= value
 
     def _handle_gt(self, field, value):
         value = self.type_converter.convert_value_type(field, value)
@@ -168,11 +165,11 @@ class OperatorHandler:
 
     # Range operator
     def _handle_between(self, field, value):
-        if isinstance(value, str):
-            value = [value]
-        if isinstance(value, list) and len(value) == 2:
-            return field.between(value[0], value[1])
-        return None
+        if not isinstance(value, list) or len(value) != 2:
+            raise ValueError(
+                f"$between requires a list of exactly 2 values, got {value!r}"
+            )
+        return field.between(value[0], value[1])
 
     @staticmethod
     def _parse_array_value(value: Any) -> Any:
@@ -183,11 +180,17 @@ class OperatorHandler:
             if (stripped.startswith("[") and stripped.endswith("]")) or (
                 stripped.startswith("(") and stripped.endswith(")")
             ):
+                if len(stripped) > 4096:
+                    logger.warning(
+                        "Array value exceeds 4096 characters and was not parsed. "
+                        "Treating as a single literal value."
+                    )
+                    return [value]
                 try:
-                    parsed = ast.literal_eval(stripped)
+                    parsed = json.loads(stripped)
                     if isinstance(parsed, (list, tuple)):
                         return list(parsed)
-                except Exception:
+                except (json.JSONDecodeError, ValueError):
                     pass
             # Handle comma-separated values
             if "," in value:

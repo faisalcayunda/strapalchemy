@@ -15,8 +15,8 @@ class SortBuilder:
         self.model = model
         # Cache for relationship metadata to avoid repeated introspection
         self._relationship_cache: dict[str, Any] = {}
-        # Cache for field validation
-        self._field_cache: dict[str, bool] = {}
+        # Cache for field validation (stores field object or None for misses)
+        self._field_cache: dict[str, Any] = {}
 
     def apply_sorting(self, query: Select, sort_config: list[str] | None) -> Select:
         """Apply enhanced sorting to the query with performance optimizations and better error handling.
@@ -49,7 +49,10 @@ class SortBuilder:
             # Use stable sorting by created_at desc, then id for consistency
             # This ensures consistent ordering even when new records are added
             if hasattr(self.model, "created_at"):
-                return query.order_by(desc(self.model.created_at), self.model.id)
+                return query.order_by(
+                    desc(self.model.created_at).nulls_last(),
+                    asc(self.model.id).nulls_last(),
+                )
             elif hasattr(self.model, "id"):
                 return query.order_by(self.model.id)
             return query
@@ -208,12 +211,11 @@ class SortBuilder:
         """
         # Use cache for field validation
         if field_path in self._field_cache:
-            if not self._field_cache[field_path]:
-                return None
+            return self._field_cache[field_path]
 
         try:
             if not field_path or ".." in field_path or field_path.startswith("_"):
-                self._field_cache[field_path] = False
+                self._field_cache[field_path] = None
                 return None
 
             parts = field_path.split(".")
@@ -223,12 +225,12 @@ class SortBuilder:
                 if hasattr(model_field, part):
                     model_field = getattr(model_field, part)
                 else:
-                    self._field_cache[field_path] = False
+                    self._field_cache[field_path] = None
                     return None
 
-            self._field_cache[field_path] = True
+            self._field_cache[field_path] = model_field
             return model_field
         except Exception as e:
             logger.warning(f"Error getting model field '{field_path}': {e}")
-            self._field_cache[field_path] = False
+            self._field_cache[field_path] = None
             return None

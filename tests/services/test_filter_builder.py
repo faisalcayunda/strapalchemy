@@ -90,19 +90,16 @@ class TestFilterBuilder:
         filter_builder = FilterBuilder(User)
         query = select(User)
 
-        # Note: $lte uses < internally (for date handling), not <=
-        # So age: {$lte: 28} becomes age < 28, which excludes 28
         filters = {"age": {"$lte": 28}}
         query = filter_builder.apply_filters(query, filters)
 
         result = await async_session.execute(query)
         users = result.scalars().all()
 
-        # Users with age < 28: Jane (25), Charlie (22) = 2 users
-        # Alice (28) is NOT included because < 28 excludes 28
-        assert len(users) == 2
+        # Users with age <= 28: Jane (25), Alice (28), Charlie (22) = 3 users
+        assert len(users) == 3
         for user in users:
-            assert user.age < 28
+            assert user.age <= 28
 
     async def test_gt_operator(self, async_session, populated_database):
         """Test $gt operator."""

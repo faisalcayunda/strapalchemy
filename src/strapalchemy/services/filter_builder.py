@@ -1,6 +1,5 @@
 """Enhanced dynamic filter builder for queries with performance optimizations."""
 
-from functools import lru_cache
 from typing import Any
 
 from dateutil.parser import parse as date_parse
@@ -20,6 +19,7 @@ class FilterBuilder:
         self.operator_handler = OperatorHandler()
         # Cache for relationship metadata to avoid repeated introspection
         self._relationship_cache: dict[str, Any] = {}
+        self._field_cache: dict[str, Any] = {}
 
     def apply_filters(self, query: Select, filters: dict[str, Any] | None) -> Select:
         """Apply all filter conditions to the query with enhanced performance and error handling.
@@ -103,7 +103,7 @@ class FilterBuilder:
                         if condition is not None:
                             filter_conditions.append(condition)
 
-                except Exception as e:
+                except (AttributeError, TypeError, ValueError) as e:
                     logger.warning(f"Failed to process filter for field '{field_name}': {e}")
                     # Continue processing other filters instead of failing completely
                     continue
@@ -121,7 +121,7 @@ class FilterBuilder:
 
             return query
 
-        except Exception as e:
+        except (AttributeError, TypeError, ValueError) as e:
             logger.error(f"Critical error in filter application: {e}")
             # Return original query if filter application fails completely
             return query
@@ -354,7 +354,6 @@ class FilterBuilder:
 
         return not_(and_(*not_conditions)) if not_conditions else None
 
-    @lru_cache(maxsize=128)
     def _get_model_field(self, field_path: str):
         """Get model field attribute from field path (supports nested fields).
 
@@ -364,8 +363,12 @@ class FilterBuilder:
         Returns:
             Model field attribute or None
         """
+        if field_path in self._field_cache:
+            return self._field_cache[field_path]
+
         try:
-            if not field_path or ".." in field_path or field_path.startswith("_"):
+            if not field_path or ".." in field_path or any(part.startswith("_") for part in field_path.split(".")):
+                self._field_cache[field_path] = None
                 return None
 
             parts = field_path.split(".")
@@ -375,10 +378,13 @@ class FilterBuilder:
                 if hasattr(model_field, part):
                     model_field = getattr(model_field, part)
                 else:
+                    self._field_cache[field_path] = None
                     return None
 
+            self._field_cache[field_path] = model_field
             return model_field
         except Exception:
+            self._field_cache[field_path] = None
             return None
 
     @staticmethod
@@ -391,30 +397,30 @@ class FilterBuilder:
         Returns:
             Modified filters with parsed dates
         """
+        field_filters = field_filters.copy()
         date_operators = {"$eq", "$lt", "$lte", "$gt", "$gte", "$ne", "$in", "$between"}
+
+        def try_parse_date(val):
+            if isinstance(val, str):
+                try:
+                    if val.isdigit():
+                        return val
+                    # Try to parse as date/datetime
+                    parsed = date_parse(val)
+                    # Return the original string if parsing doesn't change the value
+                    # (indicates it wasn't a date string)
+                    if str(parsed) == val:
+                        return val
+                    return parsed
+                except (ValueError, TypeError, OverflowError):
+                    return val
+            elif isinstance(val, list):
+                return [try_parse_date(item) for item in val]
+            return val
 
         for key, value in field_filters.items():
             if key in date_operators and value is not None:
                 try:
-
-                    def try_parse_date(val):
-                        if isinstance(val, str):
-                            try:
-                                if val.isdigit():
-                                    return val
-                                # Try to parse as date/datetime
-                                parsed = date_parse(val)
-                                # Return the original string if parsing doesn't change the value
-                                # (indicates it wasn't a date string)
-                                if str(parsed) == val:
-                                    return val
-                                return parsed
-                            except (ValueError, TypeError, OverflowError):
-                                return val
-                        elif isinstance(val, list):
-                            return [try_parse_date(item) for item in val]
-                        return val
-
                     field_filters[key] = try_parse_date(value)
                 except Exception as e:
                     logger.warning(f"Failed to parse date for key '{key}': {e}")

@@ -1,5 +1,7 @@
 """Enhanced pagination builder for queries with performance optimizations and better error handling (Sync version)."""
 
+import hashlib
+from collections import OrderedDict
 from typing import Any
 
 from sqlalchemy import Select, func, select
@@ -36,7 +38,7 @@ class SyncPaginator:
         self.session = session
         self.model = model
         # Cache for count queries to avoid repeated execution
-        self._count_cache: dict[str, int] = {}
+        self._count_cache: OrderedDict[str, int] = OrderedDict()
 
     def apply_pagination(
         self, query: Select, pagination: dict[str, Any] | None
@@ -242,7 +244,9 @@ class SyncPaginator:
         try:
             # Generate cache key based on query - use more stable key generation
             # This ensures cache consistency across requests
-            cache_key = str(hash(str(query.compile(compile_kwargs={"literal_binds": True}))))
+            cache_key = hashlib.sha256(
+                str(query.compile(compile_kwargs={"literal_binds": True})).encode()
+            ).hexdigest()
             if cache_key in self._count_cache:
                 return self._count_cache[cache_key]
 
@@ -264,10 +268,7 @@ class SyncPaginator:
 
             # Limit cache size to prevent memory issues
             if len(self._count_cache) > 50:
-                # Remove oldest entries (simple FIFO)
-                oldest_keys = list(self._count_cache.keys())[:25]
-                for key in oldest_keys:
-                    del self._count_cache[key]
+                self._count_cache.popitem(last=False)
 
             return count
 
@@ -289,9 +290,6 @@ class SyncPaginator:
             else:
                 # Use count(*) for tables without id
                 simple_count = select(func.count()).select_from(self.model)
-
-            if hasattr(self.model, "status"):
-                simple_count = simple_count.where(self.model.status != "DELETED")
 
             result = self.session.scalar(simple_count)
             return result or 0

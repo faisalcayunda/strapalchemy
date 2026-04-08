@@ -12,16 +12,25 @@ from strapalchemy.models.base import Base
 class PopulationBuilder:
     """Enhanced relationship eager loading builder with performance optimizations and better error handling."""
 
-    def __init__(self, model: type[Base], relationships: dict[str, str] | None = None):
+    def __init__(
+        self,
+        model: type[Base],
+        relationships: dict[str, str] | None = None,
+        skip_relationships: set[str] | None = None,
+    ):
         """Initialize PopulationBuilder with enhanced configuration.
 
         Args:
             model: SQLAlchemy model class
             relationships: Dictionary mapping relationship names to load types
                           (e.g., {'user': 'selectinload', 'organization': 'joinedload'})
+            skip_relationships: Set of relationship path strings to skip during loading.
+                                Use this for virtual or computed relationships that are
+                                not real SQLAlchemy mapped relationships.
         """
         self.model = model
         self.relationships = relationships or {}
+        self.skip_relationships: set[str] = skip_relationships or set()
         # Cache for relationship metadata to avoid repeated introspection
         self._relationship_cache: dict[str, Any] = {}
         # Cache for field validation
@@ -130,10 +139,8 @@ class PopulationBuilder:
             Modified query with relationship loaded
         """
         try:
-            # Handle special cases for virtual relationships
-            if relation_path == "analytic":
-                # Analytic is not a real relationship, it's computed dynamically
-                # Skip loading and let the use case handle it
+            # Handle configurable skip list for virtual/computed relationships
+            if relation_path in self.skip_relationships:
                 return query
 
             # Use cache to avoid repeated introspection
@@ -160,23 +167,31 @@ class PopulationBuilder:
                     else:
                         option = selectinload(relation_attr)
             else:
-                # Nested relationship
+                # Nested relationship — resolve mapped attributes at each step
+                current_model = self.model
+                option = None
                 for i, part in enumerate(parts):
+                    if not hasattr(current_model, part):
+                        option = None
+                        break
+                    relation_attr = getattr(current_model, part)
                     if i == 0:
-                        if hasattr(self.model, part):
-                            relation_attr = getattr(self.model, part)
-                            # Use configured loading strategy for first level
-                            load_type = self.relationships.get(part, "selectinload")
-                            if load_type == "joinedload":
-                                option = joinedload(relation_attr)
-                            elif load_type == "subqueryload":
-                                option = subqueryload(relation_attr)
-                            else:
-                                option = selectinload(relation_attr)
+                        # Use configured loading strategy for first level
+                        load_type = self.relationships.get(part, "selectinload")
+                        if load_type == "joinedload":
+                            option = joinedload(relation_attr)
+                        elif load_type == "subqueryload":
+                            option = subqueryload(relation_attr)
+                        else:
+                            option = selectinload(relation_attr)
                     else:
-                        if option:
-                            # For nested levels, use selectinload for consistency
-                            option = option.selectinload(part)
+                        option = option.selectinload(relation_attr)
+                    # Advance to the related model for the next iteration
+                    try:
+                        current_model = relation_attr.property.mapper.class_
+                    except Exception:
+                        option = None
+                        break
 
             if option:
                 query = query.options(option)

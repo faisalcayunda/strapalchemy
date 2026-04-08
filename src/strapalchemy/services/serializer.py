@@ -11,6 +11,10 @@ from sqlalchemy.inspection import inspect
 
 from strapalchemy.logging.logger import logger
 
+# Sentinel object used to distinguish "key not present in dict" from falsy values
+# such as 0, False, "", or [].
+_SENTINEL = object()
+
 
 class ModelSerializer:
     """Enhanced high-performance SQLAlchemy model serializer with memory optimizations and better error handling."""
@@ -25,15 +29,12 @@ class ModelSerializer:
         IPv6Address: lambda v: str(v),
     }
 
-    # Cache for model introspection to avoid repeated calls
-    _model_cache: dict[str, Any] = {}
-
     @classmethod
     def serialize(
         cls,
         models: Any,
-        fields: list[str] = None,
-        populate: str | dict[str, Any] | list[str] = None,
+        fields: list[str] | None = None,
+        populate: str | dict[str, Any] | list[str] | None = None,
     ) -> list[dict[str, Any]] | dict[str, Any]:
         """Serialize SQLAlchemy models to dictionaries with enhanced performance and memory optimizations.
 
@@ -99,13 +100,7 @@ class ModelSerializer:
             item = {}
             model_dict = model.__dict__  # Cache model dict access
 
-            # Get model state with caching
-            model_key = f"{model.__class__.__name__}_{id(model)}"
-            if model_key not in cls._model_cache:
-                state = inspect(model)
-                cls._model_cache[model_key] = state
-            else:
-                state = cls._model_cache[model_key]
+            state = inspect(model)
 
             unloaded = state.unloaded
 
@@ -116,7 +111,9 @@ class ModelSerializer:
                     # Always try to serialize explicitly requested fields, even if unloaded
                     # This ensures consistent response structure
                     try:
-                        value = model_dict.get(field) or getattr(model, field, None)
+                        value = model_dict.get(field, _SENTINEL)
+                        if value is _SENTINEL:
+                            value = getattr(model, field, None)
                         item[field] = cls._convert_to_serializable(value)
                     except (AttributeError, Exception) as e:
                         logger.warning(f"Failed to serialize field '{field}': {e}")
@@ -353,18 +350,13 @@ class ModelSerializer:
             Example: "user.role" -> {"user": {"role": {}}}
             """
             parts = path.strip().split(".")
-            if len(parts) == 1:
-                return {}
-
-            result = {}
+            result: dict[str, Any] = {}
             current = result
             for part in parts[:-1]:
                 current[part] = {}
                 current = current[part]
-            # Last part gets empty dict
             current[parts[-1]] = {}
-
-            return result[parts[0]] if parts else {}
+            return result
 
         # Helper to merge nested dicts
         def merge_nested(target: dict, source: dict) -> None:
@@ -388,10 +380,9 @@ class ModelSerializer:
                     first_key = parts[0]
                     nested = build_nested_dict(s)
                     if first_key in result:
-                        if nested:
-                            merge_nested(result[first_key], nested)
+                        merge_nested(result[first_key], nested[first_key])
                     else:
-                        result[first_key] = nested
+                        result[first_key] = nested[first_key]
                 else:
                     # Simple relationship: "user"
                     if s not in result:
@@ -413,10 +404,9 @@ class ModelSerializer:
                     first_key = parts[0]
                     nested = build_nested_dict(item)
                     if first_key in result:
-                        if nested:
-                            merge_nested(result[first_key], nested)
+                        merge_nested(result[first_key], nested[first_key])
                     else:
-                        result[first_key] = nested
+                        result[first_key] = nested[first_key]
                 else:
                     # Simple relationship: "user"
                     if item not in result:

@@ -111,21 +111,15 @@ class TestOperatorHandler:
 
         handler = OperatorHandler()
 
-        class MockType:
-            """Mock type that doesn't match SQLAlchemy types."""
-            pass
-
         class MockField:
             def __init__(self, value):
                 self.value = value
-                self.type = MockType()
 
-            def __lt__(self, other):
-                # Note: _handle_lte uses < (not <=) for date handling logic
-                return self.value < other
+            def __le__(self, other):
+                return self.value <= other
 
         field = MockField(25)
-        condition = handler.build_condition(field, "$lte", 26)
+        condition = handler.build_condition(field, "$lte", 25)
 
         assert condition is True
 

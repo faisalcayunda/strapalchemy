@@ -7,11 +7,11 @@ and more.
 
 Example:
     ```python
-    from strapalchemy import FilterBuilder, SortBuilder, SearchEngine, Base
+    from strapalchemy import FilterBuilder, SortBuilder, SearchEngine
     from sqlalchemy import select, Column, Integer, String
 
-    # Define your model
-    class User(Base):
+    # Define your model (extend DeclarativeBase from SQLAlchemy)
+    class User(DeclarativeBase):
         __tablename__ = "users"
         id = Column(Integer, primary_key=True)
         name = Column(String)
@@ -34,12 +34,10 @@ Example:
     ```
 """
 
-# Services
 # Logging
 from strapalchemy.logging import get_logger, logger, setup_logging_from_ini
 
-# Models
-from strapalchemy.models.base import Base
+# Services
 from strapalchemy.services.field_selector import FieldSelector
 from strapalchemy.services.filter_builder import FilterBuilder
 from strapalchemy.services.operator_handler import STRAPI_OPERATORS, OperatorHandler
@@ -70,8 +68,6 @@ __all__ = [
     "SortBuilder",
     "TypeConverter",
     "STRAPI_OPERATORS",
-    # Models
-    "Base",
     # Logging
     "logger",
     "get_logger",

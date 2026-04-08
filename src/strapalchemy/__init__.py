@@ -53,7 +53,7 @@ from strapalchemy.services.sync_paginator import SyncPaginator
 from strapalchemy.services.sync_query_optimizer import SyncQueryOptimizer
 from strapalchemy.services.type_converter import TypeConverter
 
-__version__ = "0.2.5"
+__version__ = "0.3.0"
 
 __all__ = [
     # Services

@@ -1,274 +1,505 @@
-"""Enhanced full-text and fuzzy search engine for queries with BM25 and performance optimizations."""
+"""Database-agnostic full-text search engine using the Strategy Pattern."""
 
 import re
-from typing import Any
+from typing import Any, Protocol, runtime_checkable
 
-from sqlalchemy import Select, String, Text, or_, text
+from sqlalchemy import ColumnElement, Select, String, Text, and_, or_, text
+from sqlalchemy import inspect as sa_inspect
+from sqlalchemy.exc import OperationalError
+from sqlalchemy.orm import InstrumentedAttribute
 
 from strapalchemy.logging.logger import logger
-from strapalchemy.models.base import Base
+
+# ---------------------------------------------------------------------------
+# Helper
+# ---------------------------------------------------------------------------
+
+_SAFE_IDENTIFIER = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+
+
+def _fts5_quote(token: str) -> str:
+    """Wrap *token* in FTS5 phrase quotes so it is treated as a literal phrase.
+
+    FTS5 treats ``"``, ``*``, ``OR``, ``AND``, ``NOT``, ``NEAR``, ``(``, ``)``,
+    and column filter syntax as operators even inside a bound parameter, because
+    the entire query string is parsed by the FTS5 engine.  Wrapping each token
+    in double quotes disables operator interpretation; any literal ``"`` inside
+    the token is escaped by doubling it (per FTS5 quoting rules).
+
+    Args:
+        token: A single search token, possibly containing FTS5 operator characters.
+
+    Returns:
+        The token enclosed in FTS5 phrase quotes with internal quotes doubled.
+    """
+    return '"' + token.replace('"', '""') + '"'
+
+
+def _get_column(model: type, field_name: str) -> "InstrumentedAttribute[Any] | None":
+    """Return the SQLAlchemy column attribute for *field_name* on *model*.
+
+    Args:
+        model: SQLAlchemy declarative model class.
+        field_name: Attribute name to look up.
+
+    Returns:
+        Column attribute, or ``None`` if the attribute does not exist.
+    """
+    try:
+        return getattr(model, field_name)
+    except AttributeError:
+        return None
+
+
+# ---------------------------------------------------------------------------
+# Protocol
+# ---------------------------------------------------------------------------
+
+
+@runtime_checkable
+class SearchStrategy(Protocol):
+    """Interface that every concrete search strategy must satisfy."""
+
+    def build_conditions(
+        self,
+        model: type,
+        fields: list[str],
+        tokens: list[str],
+    ) -> list[ColumnElement[bool]]:
+        """Build a list of SQLAlchemy filter conditions for *tokens* over *fields*.
+
+        Each element in the returned list represents one field's compound
+        condition (all tokens must match that field).  The caller combines
+        them with ``OR`` so that a row is a hit when *any* field satisfies
+        *all* tokens.
+
+        Args:
+            model: SQLAlchemy declarative model class.
+            fields: Column names declared in ``__searchable__``.
+            tokens: Already-sanitized individual words from the search string.
+
+        Returns:
+            Flat list of SQLAlchemy ``ColumnElement[bool]`` objects.
+        """
+        ...  # pragma: no cover
+
+
+# ---------------------------------------------------------------------------
+# Strategies
+# ---------------------------------------------------------------------------
+
+
+class PostgreSQLStrategy:
+    """Search strategy for PostgreSQL using the native ``~*`` regex operator.
+
+    Uses word-boundary anchors (``\\m`` / ``\\M``) for whole-word,
+    case-insensitive matching — no extensions required.
+    """
+
+    def build_conditions(
+        self,
+        model: type,
+        fields: list[str],
+        tokens: list[str],
+    ) -> list[ColumnElement[bool]]:
+        """Build conditions using PostgreSQL case-insensitive regex matching.
+
+        Args:
+            model: SQLAlchemy declarative model class.
+            fields: Column names to search.
+            tokens: Individual search tokens.
+
+        Returns:
+            One condition per field where all tokens must match.
+        """
+        conditions: list[ColumnElement[bool]] = []
+        for field_name in fields:
+            col = _get_column(model, field_name)
+            if col is None:
+                continue
+            token_conditions: list[ColumnElement[bool]] = [
+                col.op("~*")(r"\m" + re.escape(t) + r"\M")
+                for t in tokens
+            ]
+            if not token_conditions:
+                continue
+            conditions.append(
+                and_(*token_conditions) if len(token_conditions) > 1 else token_conditions[0]
+            )
+        return conditions
+
+
+class MySQLStrategy:
+    """Search strategy for MySQL / MariaDB.
+
+    Primary path: ``MATCH … AGAINST … IN BOOLEAN MODE`` (requires FULLTEXT
+    index on the target columns).
+
+    Automatic fallback: when the primary path raises (e.g. no FULLTEXT index),
+    ``mark_fulltext_unavailable()`` is called internally and subsequent calls
+    use ``SOUNDS LIKE`` (Soundex) phonetic matching instead.
+
+    Degradation is scoped per field-set: only the specific combination of
+    fields that triggered the failure degrades; other field combinations
+    continue using FULLTEXT.
+    """
+
+    # MySQL FTS boolean mode operator characters that must be stripped from
+    # user-supplied tokens before constructing the boolean query string.
+    _MYSQL_FTS_OP_CHARS = re.compile(r'[+\-><()~*"@]')
+
+    def __init__(self) -> None:
+        self._failed_field_sets: set[frozenset[str]] = set()
+
+    def mark_fulltext_unavailable(self, fields: list[str]) -> None:
+        """Disable the FULLTEXT path for the given *fields* combination.
+
+        Degradation is scoped: only this specific field-set falls back to
+        Soundex; other field combinations are unaffected.
+
+        Args:
+            fields: Column names whose FULLTEXT path should be disabled.
+        """
+        self._failed_field_sets.add(frozenset(fields))
+
+    def build_conditions(
+        self,
+        model: type,
+        fields: list[str],
+        tokens: list[str],
+    ) -> list[ColumnElement[bool]]:
+        """Build MySQL search conditions.
+
+        Args:
+            model: SQLAlchemy declarative model class.
+            fields: Column names to search.
+            tokens: Individual search tokens.
+
+        Returns:
+            FULLTEXT or Soundex conditions depending on availability.
+        """
+        if frozenset(fields) not in self._failed_field_sets:
+            return self._build_fulltext_conditions(fields, tokens)
+        return self._build_soundex_conditions(model, fields, tokens)
+
+    def _sanitize_fts_token(self, token: str) -> str:
+        """Strip MySQL FTS boolean mode operator characters from *token*.
+
+        Args:
+            token: A single search token, potentially containing operator chars.
+
+        Returns:
+            The token with all FTS operator characters removed and stripped.
+        """
+        return self._MYSQL_FTS_OP_CHARS.sub("", token).strip()
+
+    def _build_fulltext_conditions(
+        self,
+        fields: list[str],
+        tokens: list[str],
+    ) -> list[ColumnElement[bool]]:
+        # ``fields`` are developer-controlled column names from ``__searchable__``,
+        # never user input.  User tokens go into the ``:q`` bound parameter only,
+        # and are sanitized to strip MySQL FTS boolean operator characters.
+        invalid = [f for f in fields if not _SAFE_IDENTIFIER.match(f)]
+        if invalid:
+            raise ValueError(
+                f"Invalid field names for FULLTEXT search: {invalid!r}. "
+                "Field names must match ^[A-Za-z_][A-Za-z0-9_]*$."
+            )
+        field_list = ", ".join(fields)
+        sanitized_parts: list[str] = []
+        for t in tokens:
+            clean = self._sanitize_fts_token(t)
+            if clean:
+                sanitized_parts.append(f"+{clean}")
+        if not sanitized_parts:
+            return []
+        boolean_query = " ".join(sanitized_parts)
+        expr = text(f"MATCH({field_list}) AGAINST (:q IN BOOLEAN MODE)").bindparams(
+            q=boolean_query
+        )
+        return [expr]  # type: ignore[list-item]
+
+    def _build_soundex_conditions(
+        self,
+        model: type,
+        fields: list[str],
+        tokens: list[str],
+    ) -> list[ColumnElement[bool]]:
+        conditions: list[ColumnElement[bool]] = []
+        for field_name in fields:
+            col = _get_column(model, field_name)
+            if col is None:
+                continue
+            token_conditions: list[ColumnElement[bool]] = [
+                col.op("SOUNDS LIKE")(t) for t in tokens
+            ]
+            if not token_conditions:
+                continue
+            conditions.append(
+                and_(*token_conditions) if len(token_conditions) > 1 else token_conditions[0]
+            )
+        return conditions
+
+
+class SQLiteStrategy:
+    """Search strategy for SQLite.
+
+    Primary path (opt-in): if the model declares ``__fts5_table__: str``,
+    a correlated FTS5 subquery is used.
+
+    Automatic fallback: delegates to ``UniversalFallbackStrategy`` when no
+    FTS5 virtual table is declared.
+    """
+
+    def build_conditions(
+        self,
+        model: type,
+        fields: list[str],
+        tokens: list[str],
+    ) -> list[ColumnElement[bool]]:
+        """Build SQLite search conditions.
+
+        Args:
+            model: SQLAlchemy declarative model class.
+            fields: Column names to search.
+            tokens: Individual search tokens.
+
+        Returns:
+            FTS5 subquery conditions or ILIKE fallback conditions.
+        """
+        fts_table: str | None = getattr(model, "__fts5_table__", None)
+        if fts_table:
+            return self._build_fts5_conditions(model, fts_table, tokens)
+        return UniversalFallbackStrategy().build_conditions(model, fields, tokens)
+
+    def _build_fts5_conditions(
+        self,
+        model: type,
+        fts_table: str,
+        tokens: list[str],
+    ) -> list[ColumnElement[bool]]:
+        # Validate ``fts_table`` against a safe identifier allowlist before
+        # interpolating it into the SQL string.
+        if not _SAFE_IDENTIFIER.match(fts_table):
+            raise ValueError(
+                f"__fts5_table__ value {fts_table!r} is not a valid SQL identifier. "
+                "Use only letters, digits, and underscores."
+            )
+
+        insp = sa_inspect(model)
+        # Use the ORM-mapped attribute for .in_() so SQLAlchemy generates
+        # correct ORM-level SQL rather than raw Table column SQL.
+        pk_attr_name = insp.mapper.primary_key[0].key
+        pk_col = getattr(model, pk_attr_name)
+
+        fts_query = " ".join(_fts5_quote(t) for t in tokens)  # FTS5 implicit AND, tokens quoted as literals
+        subq = text(f"SELECT rowid FROM {fts_table} WHERE {fts_table} MATCH :q").bindparams(
+            q=fts_query
+        )
+        return [pk_col.in_(subq)]  # type: ignore[list-item]
+
+
+class UniversalFallbackStrategy:
+    """Cross-database ILIKE/LIKE fallback using bound parameters.
+
+    Each token produces a separate ``%token%`` condition; all tokens must
+    match a field (AND) for that field to be considered a hit.
+
+    When *fields* is empty, all ``String`` and ``Text`` columns of the model
+    are searched automatically.
+    """
+
+    def build_conditions(
+        self,
+        model: type,
+        fields: list[str],
+        tokens: list[str],
+    ) -> list[ColumnElement[bool]]:
+        """Build parameterised ILIKE conditions across all relevant fields.
+
+        Args:
+            model: SQLAlchemy declarative model class.
+            fields: Column names to search (auto-discovered when empty).
+            tokens: Individual search tokens.
+
+        Returns:
+            One AND-compound condition per field.
+        """
+        effective_fields = fields
+        if not effective_fields:
+            effective_fields = [
+                col.key
+                for col in model.__table__.columns
+                if isinstance(col.type, (String, Text))
+            ]
+
+        conditions: list[ColumnElement[bool]] = []
+        for field_name in effective_fields:
+            col = _get_column(model, field_name)
+            if col is None:
+                continue
+            # .ilike() passes the full pattern as a bound parameter — injection-safe.
+            token_conds: list[ColumnElement[bool]] = [col.ilike(f"%{t}%") for t in tokens]
+            if not token_conds:
+                continue
+            conditions.append(
+                and_(*token_conds) if len(token_conds) > 1 else token_conds[0]
+            )
+        return conditions
+
+
+# ---------------------------------------------------------------------------
+# SearchEngine
+# ---------------------------------------------------------------------------
 
 
 class SearchEngine:
-    """Enhanced search engine with BM25, fuzzy search, and performance optimizations."""
+    """Database-agnostic search engine that selects a strategy by dialect.
 
-    def __init__(self):
-        # Cache for searchable field configurations
-        self._searchable_cache: dict[str, Any] = {}
-        # Flag to track if ParadeDB is available (will be set on first use)
-        self._paradedb_available: bool | None = None
-        # Flag to force ILIKE search (for testing or when ParadeDB fails)
-        self._force_ilike: bool = False
+    Instantiate once per dialect (or once per request if the dialect varies).
 
-    def apply_search(self, query: Select, model: type[Base], search: str | None) -> Select:
-        """Apply enhanced full-text search with BM25, fuzzy search, and performance optimizations.
+    Example::
 
-        Features:
-        - BM25 search for exact matches (high priority)
-        - Fuzzy search with configurable tolerance
-        - Fallback to ILIKE search
-        - Performance optimizations with caching
-        - Better error handling
+        engine = SearchEngine(dialect="postgresql")
+        query = engine.apply_search(select(User), User, "alice developer")
+    """
+
+    def __init__(self, dialect: str = "sqlite") -> None:
+        self._searchable_cache: dict[str, list[str]] = {}
+        self._strategy: SearchStrategy = self._select_strategy(dialect)
+
+    # ------------------------------------------------------------------
+    # Public API
+    # ------------------------------------------------------------------
+
+    def apply_search(self, query: Select, model: type, search: str | None) -> Select:
+        """Apply the appropriate search strategy to *query*.
 
         Args:
-            query: SQLAlchemy Select query
-            model: SQLAlchemy model class
-            search: Search string to find in searchable fields
+            query: SQLAlchemy ``Select`` statement to filter.
+            model: SQLAlchemy declarative model class.
+            search: Raw search string supplied by the caller.
 
         Returns:
-            Modified query with search filter applied
+            The same ``Select`` statement with a ``WHERE`` clause appended,
+            or the original statement unchanged when *search* is blank.
         """
         if not search or not search.strip():
             return query
 
+        tokens = self._tokenize_search_query(search)
+        if not tokens:
+            return query
+
+        fields = self._get_searchable_fields(model)
+
         try:
-            # Get searchable configuration with caching
-            searchable_config = self._get_searchable_config(model)
-            if not searchable_config:
-                return self._apply_fallback_search(query, model, search)
+            conditions = self._strategy.build_conditions(model, fields, tokens)
+        except OperationalError as exc:
+            # MySQL: FULLTEXT index may be absent — try the phonetic fallback.
+            # Degradation is scoped to the specific field-set that failed.
+            if hasattr(self._strategy, "mark_fulltext_unavailable"):
+                logger.warning(
+                    f"FULLTEXT search unavailable for fields {fields} on "
+                    f"{model.__name__}: {exc}. Falling back to phonetic search."
+                )
+                self._strategy.mark_fulltext_unavailable(fields)  # type: ignore[union-attr]
+                try:
+                    conditions = self._strategy.build_conditions(model, fields, tokens)
+                except OperationalError as exc2:
+                    logger.error(f"Fallback search strategy also failed: {exc2}")
+                    conditions = UniversalFallbackStrategy().build_conditions(
+                        model, fields, tokens
+                    )
+            else:
+                logger.error(f"Search strategy failed: {exc}")
+                conditions = UniversalFallbackStrategy().build_conditions(
+                    model, fields, tokens
+                )
 
-            text_fields = searchable_config.get("text_fields", [])
+        if not conditions:
+            return query
 
-            if not text_fields:
-                return self._apply_fallback_search(query, model, search)
+        return query.where(or_(*conditions))
 
-            # Sanitize search query
-            sanitized_search = self._sanitize_search_query(search)
+    # ------------------------------------------------------------------
+    # Private helpers
+    # ------------------------------------------------------------------
 
-            # If ParadeDB is known to be unavailable or force_ilike is set, use ILIKE directly
-            if self._force_ilike or self._paradedb_available is False:
-                logger.info("Using ILIKE search (ParadeDB unavailable or disabled)")
-                return self._apply_ilike_search(query, model, text_fields, sanitized_search)
+    def _select_strategy(self, dialect: str) -> SearchStrategy:
+        """Return the concrete strategy that matches *dialect*.
 
-            # Try to apply ParadeDB search strategy
-            return self._apply_hybrid_search(query, model, text_fields, sanitized_search)
-
-        except Exception as e:
-            logger.error(f"Error applying search: {e}")
-            # Fallback to simple ILIKE search
-            return self._apply_fallback_search(query, model, search)
-
-    def mark_paradedb_unavailable(self):
-        """Mark ParadeDB as unavailable and force fallback to ILIKE search."""
-        self._paradedb_available = False
-        self._force_ilike = True
-        logger.warning("ParadeDB marked as unavailable. All searches will use ILIKE fallback.")
-
-    def _get_searchable_config(self, model: type[Base]) -> dict[str, Any] | None:
-        """Get searchable configuration with caching.
+        Dialect strings are normalised before matching so that driver
+        suffixes (e.g. ``postgresql+asyncpg``) and query strings are
+        stripped automatically.
 
         Args:
-            model: SQLAlchemy model class
+            dialect: SQLAlchemy dialect name, optionally with driver suffix.
 
         Returns:
-            Searchable configuration or None
+            An instance of the matching ``SearchStrategy`` implementation.
         """
-        model_name = model.__name__
-        if model_name in self._searchable_cache:
-            return self._searchable_cache[model_name]
+        normalized = dialect.lower().split("+")[0].split("?")[0].strip()
+        if normalized in ("postgresql", "postgres"):
+            return PostgreSQLStrategy()
+        if normalized in ("mysql", "mariadb"):
+            return MySQLStrategy()
+        if normalized == "sqlite":
+            return SQLiteStrategy()
+        return UniversalFallbackStrategy()
 
-        if not hasattr(model, "__searchable__"):
-            self._searchable_cache[model_name] = None
-            return None
+    def _get_searchable_fields(self, model: type) -> list[str]:
+        """Return the list of searchable field names declared on *model*.
+
+        Results are memoised by model name.
+
+        Args:
+            model: SQLAlchemy declarative model class.
+
+        Returns:
+            List of field name strings, possibly empty.
+        """
+        model_key = f"{model.__module__}.{model.__qualname__}"
+        if model_key in self._searchable_cache:
+            return self._searchable_cache[model_key]
 
         config = getattr(model, "__searchable__", None)
-        self._searchable_cache[model_name] = config
-        return config
+        if config is None:
+            fields: list[str] = []
+        elif isinstance(config, dict):
+            fields = config.get("text_fields", [])
+        elif isinstance(config, list):
+            fields = list(config)
+        else:
+            fields = []
 
-    def _apply_fallback_search(self, query: Select, model: type[Base], search: str) -> Select:
-        """Apply fallback ILIKE search when no configuration is available.
-
-        Args:
-            query: SQLAlchemy Select query
-            model: SQLAlchemy model class
-            search: Search string
-
-        Returns:
-            Modified query with fallback search
-        """
-        sanitized_search = self._sanitize_search_query(search)
-        return self._apply_ilike_search(query, model, [], sanitized_search)
-
-    def _apply_hybrid_search(
-        self, query: Select, model: type[Base], text_fields: list[str], search: str, fuzzy_tolerance: int = 2
-    ) -> Select:
-        """Apply hybrid BM25 + fuzzy search for best results.
-
-        Falls back to ILIKE search if ParadeDB is not available.
-
-        Args:
-            query: SQLAlchemy Select query
-            model: SQLAlchemy model class
-            text_fields: List of field names to search
-            search: Sanitized search string
-            fuzzy_tolerance: Fuzzy search tolerance level
-
-        Returns:
-            Modified query with hybrid search applied
-        """
-        try:
-            table_name = model.__tablename__
-
-            # BM25 search for exact matches (high priority)
-            bm25_condition = self._build_bm25_condition(table_name, text_fields, search)
-
-            # Fuzzy search using ParadeDB's fuzzy term query syntax
-            fuzzy_conditions = []
-            for field in text_fields:
-                # ParadeDB fuzzy syntax: field:term~distance
-                fuzzy_conditions.append(f"{field}:{search}~{fuzzy_tolerance}")
-
-            # Build combined fuzzy query
-            if fuzzy_conditions:
-                fuzzy_query = " OR ".join(fuzzy_conditions)
-                combined_condition = f"(({bm25_condition}) OR ({table_name} @@@ '{fuzzy_query}'))"
-            else:
-                combined_condition = bm25_condition
-
-            return query.where(text(f"({combined_condition})"))
-        except Exception as e:
-            # If ParadeDB is not available or query fails, fallback to ILIKE search
-            logger.warning(f"ParadeDB search failed, falling back to ILIKE search: {e}")
-            return self._apply_ilike_search(query, model, text_fields, search)
-
-    def _apply_bm25_search(self, query: Select, model: type[Base], text_fields: list[str], search: str) -> Select:
-        """Apply BM25 full-text search.
-
-        Falls back to ILIKE search if ParadeDB is not available.
-
-        Args:
-            query: SQLAlchemy Select query
-            model: SQLAlchemy model class
-            text_fields: List of field names to search
-            search: Sanitized search string
-
-        Returns:
-            Modified query with BM25 search applied
-        """
-        try:
-            table_name = model.__tablename__
-            bm25_condition = self._build_bm25_condition(table_name, text_fields, search)
-            return query.where(text(f"({bm25_condition})"))
-        except Exception as e:
-            # If ParadeDB is not available, fallback to ILIKE search
-            logger.warning(f"BM25 search failed, falling back to ILIKE search: {e}")
-            return self._apply_ilike_search(query, model, text_fields, search)
-
-    def _build_bm25_condition(self, table_name: str, text_fields: list[str], search: str) -> str:
-        """Build BM25 search condition.
-
-        Args:
-            table_name: Database table name
-            text_fields: List of field names to search
-            search: Sanitized search string
-
-        Returns:
-            BM25 search condition string
-        """
-        field_queries = [f"{field}:{search}" for field in text_fields]
-        pgsearch_query = " OR ".join(field_queries)
-        return f"{table_name} @@@ '{pgsearch_query}'"
+        self._searchable_cache[model_key] = fields
+        return fields
 
     @staticmethod
-    def _sanitize_search_query(search: str) -> str:
-        """Sanitize search query to prevent injection and clean up input.
+    def _tokenize_search_query(search: str) -> list[str]:
+        """Split *search* into a sanitised list of tokens.
+
+        Processing steps (in order):
+
+        1. Remove ASCII control characters (``\\x00``–``\\x1f``, ``\\x7f``).
+        2. Normalise runs of whitespace to a single space and strip.
+        3. Split on whitespace.
+        4. Drop empty strings.
+        5. Limit to 20 tokens to prevent abuse.
+
+        Special characters such as ``'``, ``"``, ``-``, and ``;`` are
+        **not** stripped — they are passed as bound parameters and are
+        therefore injection-safe.
 
         Args:
-            search: Raw search string
+            search: Raw search string supplied by the caller.
 
         Returns:
-            Sanitized search string
+            List of at most 20 non-empty token strings.
         """
-        search_query = search.strip()
-        # Remove control characters
-        search_query = re.sub(r"[\x00-\x1f\x7f]", "", search_query)
-        # Remove dangerous characters that could cause SQL injection
-        search_query = search_query.replace('"', "").replace("'", "").replace(";", "").replace("--", "")
-        # Remove SQL keywords that could be dangerous
-        dangerous_keywords = ["DROP", "DELETE", "UPDATE", "INSERT", "CREATE", "ALTER"]
-        for keyword in dangerous_keywords:
-            search_query = re.sub(re.escape(keyword), "", search_query, flags=re.IGNORECASE)
-        # Normalize whitespace
-        search_query = re.sub(r"\s+", " ", search_query)
-        return search_query
-
-    def _apply_fuzzy_search(
-        self, query: Select, model: type[Base], text_fields: list[str], search: str, fuzzy_tolerance: int = 2
-    ) -> Select:
-        """Apply ParadeDB fuzzy search with configurable tolerance.
-
-        Falls back to ILIKE search if ParadeDB is not available.
-
-        Args:
-            query: SQLAlchemy Select query
-            model: SQLAlchemy model class
-            text_fields: List of field names to search
-            search: Sanitized search string
-            fuzzy_tolerance: Fuzzy search tolerance level (1-3)
-
-        Returns:
-            Modified query with fuzzy search applied
-        """
-        try:
-            table_name = model.__tablename__
-            # Clamp tolerance between 1 and 3
-            tolerance = max(1, min(3, fuzzy_tolerance))
-
-            # ParadeDB fuzzy syntax: field:term~distance
-            field_conditions = [f"{field}:{search}~{tolerance}" for field in text_fields]
-            fuzzy_query = " OR ".join(field_conditions)
-            return query.where(text(f"({table_name} @@@ '{fuzzy_query}')"))
-        except Exception as e:
-            # If ParadeDB is not available, fallback to ILIKE search
-            logger.warning(f"Fuzzy search failed, falling back to ILIKE search: {e}")
-            return self._apply_ilike_search(query, model, text_fields, search)
-
-    def _apply_ilike_search(self, query: Select, model: type[Base], text_fields: list[str], search: str) -> Select:
-        """Apply ILIKE-based search with enhanced field selection.
-
-        Args:
-            query: SQLAlchemy Select query
-            model: SQLAlchemy model class
-            text_fields: List of field names to search (if empty, scans all String/Text fields)
-            search: Sanitized search string
-
-        Returns:
-            Modified query with ILIKE search applied
-        """
-        conditions = []
-        if text_fields:
-            # Search only specified fields
-            for field_name in text_fields:
-                if hasattr(model, field_name):
-                    field_obj = getattr(model, field_name)
-                    conditions.append(field_obj.ilike(f"%{search}%"))
-        else:
-            # Search all String/Text columns
-            for column in model.__table__.columns:
-                if isinstance(column.type, (String, Text)):
-                    conditions.append(column.ilike(f"%{search}%"))
-
-        if conditions:
-            return query.where(or_(*conditions))
-
-        return query
+        search = re.sub(r"[\x00-\x1f\x7f]", "", search)
+        search = re.sub(r"\s+", " ", search).strip()
+        return [t for t in search.split() if t][:20]
